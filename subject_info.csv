@@ -1,16 +1,54 @@
-﻿id,age_in_days,gender
-pl00,769.00,F
-pl01,788.00,F
-pl03,810.00,F
-pl04,858.00,F
-pl05,862.00,F
-pl06,,
-pl07,,
-pl08,,
-pl09,796.00,F
-pl10,897.00,M
-pl11,792.00,M
-pl13,1450.00,M
-pl14,1057.00,M
-pl15,876.00,F
-pl16,1049.00,M
+﻿id,include,filename,age_in_days,gender,type,expt_version,comment
+plsm,1,smflip3_fixreport.txt,,M,adult,scene,eyetracking only
+pl00,1,pl00_fixations.txt,769,F,child,scene,
+pl01,1,pl01_fixations.txt,788,F,child,scene,
+pl03,1,pl03_fixations.txt,810,F,child,scene,
+pl04,1,,858,F,child,scene,storybook only; need VNA id to get dob
+pl05,1,,862,F,child,scene,storybook only; need VNA id to get dob
+pl06,1,pl06_fixations.txt,,,adult,scene,eyetracking only
+pl07,1,pl07_fixations.txt,,,adult,scene,eyetracking only
+pl08,1,pl08_fixations.txt,,,adult,scene,eyetracking only
+pl09,1,pl09_fixations.txt,796,F,child,scene,
+pl10,1,pl10_fixations.txt,897,M,child,scene,
+adultpl12,1,adultpl12_fixations.txt,,,adult,scene,
+adultpl13,1,adultpl13_fixations.txt,,,adult,scene,
+adultpl14,1,adultpl14_fixations.txt,,,adult,scene,
+adultpl15,1,adultpl15_fixations.txt,,,adult,scene,
+adultpl16,1,adultpl16_fixations.txt,,,adult,scene,
+pl11,1,pl11_fixations.txt,792,M,child,scene,
+pl13,1,pl13_fixations.xlsx,1450,M,child,scene,
+pl14,1,pl14_fixations.xlsx,1057,M,child,scene,
+pl15,1,pl15_fixations.xlsx,876,F,child,scene,
+pl16,1,pl16_fixations.xlsx,1049,M,child,scene,
+pl17,1,pl17_fixations.xlsx,926,F,child,scene,
+pl18,1,pl18_fixations.xlsx,1034,F,child,scene,
+pl19,1,pl19_fixations.xlsx,947,M,child,scene,
+pl20,1,pl20_fixations.xlsx,1008,F,child,scene,
+pl21,0,pl21_fixations.xlsx,1100,F,child,redblue,out of order reschedule
+pl22,1,pl22_fixations.xlsx,1408,M,child,scene,
+pl23,1,pl23_fixations.xlsx,850,M,child,scene,
+pl24,1,pl24_fixations.xlsx,1091,M,child,scene,
+pl25,1,pl25_fixations.xlsx,1091,M,child,scene,
+pl26,0,pl26_fixations.xlsx,,,child,scene,rescheduling
+pl27,1,pl27_fixations.xlsx,1107,F,child,scene,
+pl28,1,pl28_fixations.xlsx,951,F,child,scene,
+pl29,1,pl29_fixations.xlsx,931,F,child,scene,
+pl30,1,pl30_fixations.xlsx,931,,child,redblue,first redblue
+pl31,1,pl31_fixations.xlsx,740,,child,redblue,
+pl33,1,pl33_fixations.xlsx,725,,child,redblue,
+pl36,1,pl36_fixations.xlsx,1079,,child,redblue,
+plad01,1,plearn_adults_plad01.xlsx,,,adult,redblue,
+plad02,1,plearn_adults_plad02.xlsx,,,adult,redblue,
+plad03,1,plearn_adults_plad03.xlsx,,,adult,redblue,
+plad04,1,plearn_adults_plad04.xlsx,,,adult,redblue,
+plad05,1,plearn_adults_plad05.xlsx,,,adult,redblue,
+plad06,1,plearn_adults_plad06.xlsx,,,adult,redblue,
+plad07,1,plearn_adults_plad07.xlsx,,,adult,redblue,
+plad08,1,plearn_adults_plad08.xlsx,,,adult,redblue,
+plad09,1,plearn_adults_plad09.xlsx,,,adult,redblue,
+plad10,1,plearn_adults_plad10.xlsx,,,adult,redblue,
+plad11,1,plearn_adults_plad11.xlsx,,,adult,redblue,
+plad12,1,plearn_adults_plad12.xlsx,,,adult,redblue,
+plad13,1,plearn_adults_plad13.xlsx,,,adult,redblue,
+plad14,1,plearn_adults_plad14.xlsx,,,adult,redblue,
+plad15,1,plearn_adults_plad15.xlsx,,,adult,redblue,
