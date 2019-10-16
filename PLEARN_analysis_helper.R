@@ -1,4 +1,7 @@
 sem = function(x){
+    ### 
+    # Compute +- standard error of the mean
+    ###
 	sample_sem = sd(x)/sqrt(length(x))
 	sample_mean = mean(x)
 	high = sample_mean + sample_sem
@@ -6,10 +9,22 @@ sem = function(x){
 	return(c(high, low))
 }
 
-getAudioTimings = function(glob){
+
+getAudioTimingsFromFile = function(path){
+    audio_timings = data.frame(do.call('rbind', fromJSON(file = path)))
+    audio_timings$disambig_time_from_0 = as.numeric(audio_timings$disambig_time_from_0)
+    audio_timings$disambig_time = 2000+(1000*audio_timings$disambig_time_from_0)
+    audio_timings$audiotarget = audio_timings$file
+    return(audio_timings)
+}
+
+getAudioTimingsFromGlob = function(glob){
+    ### 
+    # Load all of the audio timing data from the .cut JSON files used to slice the stimuli
+    ###
 	json_paths = Sys.glob(glob)
 	audio_timings = data.frame(do.call('rbind', lapply(json_paths, function(path){
-	    as.data.frame(do.call('rbind', fromJSON(file = path)))
+        as.data.frame(do.call('rbind', fromJSON(file = path)))
 	})))
 	#head(audio_timings)
 	for (name in names(audio_timings)){ 
@@ -19,13 +34,20 @@ getAudioTimings = function(glob){
 	#this is the duration of the clip in ms, + 2000	
 
 	audio_timings$audiotarget = audio_timings$filename
+    audio_timings$pp_duration = audio_timings$stop_time - audio_timings$target_noun_end_time
 	return(audio_timings)
 }
 
-analyzeParticipant = function(fixreport_path, audio_timings, participant_type, plot=F){
-	
-	participant_name = gsub('.txt','',tail(strsplit(fixreport_path, '/')[[1]]))[2]
 
+analyzeEyetrackingParticipant = function(result_dir, filename, audio_timings, participant_type, plot=F){	
+    ### 
+    # Process a single eyetracking participant (study-specific wrapper for blabr::fixations_report)
+    ###
+
+    fixreport_path = paste0(result_dir,filename)
+    print(paste0('processing ', fixreport_path,'...'))
+
+	participant_name = gsub('.txt','',tail(strsplit(fixreport_path, '/')[[1]]))[2]
     
     # if the file is an excel file rather than a csv, read it in and write it out as a csv
     current_extension = strsplit(fixreport_path, '\\.')[[1]][-1]
@@ -48,7 +70,10 @@ analyzeParticipant = function(fixreport_path, audio_timings, participant_type, p
 	gaze$CURRENT_FIX_START = gaze$CURRENT_FIX_START - gaze$disambig_time
 
 	fixbins = binifyFixations(gaze, keepCols=c(
+    "CURRENT_FIX_START",
+    "CURRENT_FIX_END",
     "TRIAL_INDEX",
+    "CURRENT_FIX_INDEX",
     "RECORDING_SESSION_LABEL",
     "CURRENT_FIX_INTEREST_AREA_LABEL",
     "RT",
@@ -111,7 +136,8 @@ analyzeParticipant = function(fixreport_path, audio_timings, participant_type, p
     	colour='black') + ggtitle(paste(participant_name, ': Animacy', sep='')) + facet_wrap(~target)
     	print(p3)
     }
-
+    
+    fixbins$filename = filename
 	return(fixbins)
 
 } 
@@ -203,6 +229,7 @@ test_participant_receptive_knowledge = function(fixbins, normalizeMethod = "none
     rdf$voicing = NULL
     rdf$dummy = NULL
     rdf$normalizeMethod = normalizeMethod
+    rdf$participant_name = gsub('.xlsx', '', gsub('_fixations','',unique(fixbins$participant_name.x)))
     return(rdf)
 
 }
@@ -327,175 +354,212 @@ getPlotForMethod = function(fixbin_dfs, adult_fixbin_dfs, methodName){
 
 }
 
-getGroupPlots = function(fixbins, groupByParticipant = F, loessSpan=.2,
-	x_start = -3000, x_end=4000, mean_pp_duration=NULL, delay_ms=367,
-    group_name){
-	group_fixbins = do.call('rbind', fixbins)
-	group_fixbins_coded = subset(group_fixbins, CURRENT_FIX_INTEREST_AREA_LABEL %in% c(
-	'TARGET','DISTRACTOR')) #& Time < 3000
-	group_fixbins_coded$cfial_bin = as.numeric(group_fixbins_coded$CURRENT_FIX_INTEREST_AREA_LABEL == 'TARGET')
-    num_participants = length(unique(group_fixbins_coded$participant_name))
-
-
-	if(!groupByParticipant) {
-		no_conditioning = aggregate(cfial_bin ~ Time + target, group_fixbins_coded, mean)
-		by_novelty = aggregate(cfial_bin ~ Time + novelty + target, group_fixbins_coded, mean)
-		by_voicing = aggregate(cfial_bin ~ Time + voicing + target, group_fixbins_coded, mean)
-		by_animacy = aggregate(cfial_bin ~ Time + animacystatus + target, group_fixbins_coded, mean)
-
-        by_label_at_onset = aggregate(cfial_bin ~ Time + label_at_onset + target, group_fixbins_coded, mean)
-	} else {
-		print(names(group_fixbins_coded))
-		
-		no_conditioning_by_participant = aggregate(cfial_bin ~ Time + target + participant_name, group_fixbins_coded, mean)        
-		no_conditioning = aggregate(cfial_bin ~ Time + target, no_conditioning_by_participant, mean)
-		no_conditioning_sem  = do.call(data.frame, aggregate(cfial_bin ~ Time + target, no_conditioning_by_participant, sem))
-		names(no_conditioning_sem) = c('Time','target', 'sem_high','sem_low')
-
-		by_novelty_by_participant = aggregate(cfial_bin ~ Time + novelty + target + participant_name, group_fixbins_coded, mean)
-		by_novelty = aggregate(cfial_bin ~ Time + novelty + target, by_novelty_by_participant, mean)		
-		by_novelty_sem  = do.call(data.frame, aggregate(cfial_bin ~ Time + novelty + target, by_novelty_by_participant, sem))
-		names(by_novelty_sem) = c('Time','novelty','target', 'sem_high','sem_low')
+getGroupPlots = function(
+    fixbins_df, # dataframe with all participants, with subject info merged     
+    # plotting params passed along to all graphs
+    filter_clause=NULL,    
+    loessSpan=.2,  
+    x_start = -2000, # span of the graph to show
+    x_end=3000,
+    mean_pp_duration=NULL, # x position of vertical line to indicate mean PP duration
+    delay_ms=367,
+    group_title = ''){
 	
-		by_voicing_by_participant = aggregate(cfial_bin ~ Time + voicing + target + participant_name, group_fixbins_coded, mean)
-		by_voicing = aggregate(cfial_bin ~ Time + voicing + target, by_voicing_by_participant, mean)
-		by_voicing_sem  = do.call(data.frame,aggregate(cfial_bin ~ Time + voicing + target, by_voicing_by_participant, sem))
-		names(by_voicing_sem) = c('Time','voicing','target', 'sem_high','sem_low')
+	fixbins_df_coded = subset(fixbins_df, CURRENT_FIX_INTEREST_AREA_LABEL %in% c(
+	'TARGET','DISTRACTOR')) #& Time < 3000
+    fixbins_df_coded$cfial_bin = as.numeric(fixbins_df_coded$CURRENT_FIX_INTEREST_AREA_LABEL == 'TARGET')
+    # the grouping / faceting actually happens inside of the getGroupPlot function
+	
+    getGroupPlot(fixbins_df, 
+        grouping_var = 'target',
+        filter_clause = filter_clause,
+        loessSpan = loessSpan, 
+        x_start = x_start,
+        x_end = x_end,
+        mean_pp_duration= mean_pp_duration,
+        delay_ms = delay_ms,
+        group_title = group_title)
 
 
-		by_animacy_by_participant = aggregate(cfial_bin ~ Time + animacystatus + target + participant_name, group_fixbins_coded, mean)
-		by_animacy = aggregate(cfial_bin ~ Time + animacystatus + target, by_animacy_by_participant, mean)		
-		by_animacy_sem  = do.call(data.frame,aggregate(cfial_bin ~ Time + animacystatus + target, by_animacy_by_participant, sem))
-		names(by_animacy_sem) = c('Time','animacystatus','target', 'sem_high','sem_low')
+    getGroupPlot(fixbins_df, 
+        grouping_var = 'novelty',
+        filter_clause = filter_clause,
+        facet_clause = '~ target',
+        facet_type = 'wrap',
+        loessSpan, x_start, x_end, mean_pp_duration= mean_pp_duration, delay_ms, group_title)
+    
+
+    getGroupPlot(fixbins_df, 
+        grouping_var = 'voicing',
+        filter_clause = filter_clause,
+        facet_clause = '~ target',
+        facet_type = 'wrap',
+        loessSpan, x_start, x_end, mean_pp_duration= mean_pp_duration, delay_ms, group_title)
+
+    getGroupPlot(fixbins_df, 
+        grouping_var = 'animacystatus',
+        filter_clause = filter_clause,
+        facet_clause = '~ target',
+        facet_type = 'wrap',
+        loessSpan, x_start, x_end, mean_pp_duration= mean_pp_duration, delay_ms, group_title)
+
+    getGroupPlot(fixbins_df, 
+        filter_clause = filter_clause,
+        facet_clause = '~ label_at_onset',
+        facet_type = 'wrap',
+        loessSpan = loessSpan,
+        x_start = x_start, 
+        x_end = x_end,
+        mean_pp_duration= mean_pp_duration,
+        delay_ms = delay_ms,
+        group_title = group_title)
+
+    getGroupPlot(fixbins_df, 
+        filter_clause = filter_clause,
+        facet_clause = '~ first3',
+        facet_type = 'wrap',
+        loessSpan = loessSpan,
+        x_start = x_start, 
+        x_end = x_end,
+        mean_pp_duration= mean_pp_duration,
+        delay_ms = delay_ms,
+        group_title = group_title)
+
+    getGroupPlot(fixbins_df, 
+        filter_clause = filter_clause,
+        facet_clause = 'target ~ first3',
+        facet_type = 'grid',
+        loessSpan = loessSpan,
+        x_start = x_start, 
+        x_end = x_end,
+        mean_pp_duration= mean_pp_duration,
+        delay_ms = delay_ms,
+        group_title = group_title)
 
 
-        by_label_at_onset_by_participant = aggregate(cfial_bin ~ Time + label_at_onset  + participant_name, group_fixbins_coded, mean)
-        by_label_at_onset = aggregate(cfial_bin ~ Time + label_at_onset , by_label_at_onset_by_participant, mean)      
-        by_label_at_onset_sem  = do.call(data.frame,aggregate(cfial_bin ~ Time + label_at_onset, by_label_at_onset_by_participant, sem))
-        names(by_label_at_onset_sem) = c('Time','label_at_onset', 'sem_high','sem_low')
-
-	}
-
-
-	p0 = ggplot(no_conditioning)
-	if (groupByParticipant){
-		p0 = p0 + geom_errorbar( data=no_conditioning_sem,
-			aes(x=Time, ymin=sem_low, ymax=sem_high), colour='red', alpha=.25)		
-	}        
-	p0 = p0 + geom_point(aes(x=Time, y = cfial_bin), size=.5
-		) + geom_smooth(aes(x=Time, y = cfial_bin), se=F, span = loessSpan
-		) + coord_cartesian(ylim=c(0,1), xlim=c(x_start, x_end)) + geom_hline(yintercept = .5, linetype = 'dotted'
-		) + ylab('Proportion Fixations on Target') + xlab('Time in ms') + geom_vline(xintercept=0,
-		colour='black')  + facet_wrap(~target) + ggtitle(
-
-        paste(group_name, ' (n=',num_participants,')', sep='')) + theme_bw() + scale_x_continuous( 
-        breaks=seq(from=-3000,to=8000,by=1000), labels=seq(from=-3000, to=8000,by=1000)) + theme(
-        axis.text.x = element_text(angle = 90, hjust = 1)
-        ) + annotate("text", x=-1200, y=.97, size=2.5,  colour='black', label='noun offset & start of /s/ or /z/')
-
-
-	if (!is.null(mean_pp_duration)){
-		p0 = p0 + geom_vline(xintercept = mean_pp_duration, colour='darkgreen',
-			linetype='dashed') + annotate("text", x=-1200, y=1.01, size=2.5,  colour='darkgreen',
-             label='Avg. end of postnominal PP'
-        )
-	}
-    options(repr.plot.width=6, repr.plot.height=4)
-	print(p0)
-
-	p1 = ggplot(by_novelty) 
-	if(groupByParticipant){
-		p1 = p1 + geom_errorbar( data=subset(by_novelty_sem, mod(Time, 100) == 0),
-			aes(x=Time, ymin=sem_low, ymax=sem_high, colour=novelty), alpha=.25)		
-	}
-	p1 = p1 + geom_point(aes(x=Time, y = cfial_bin, colour=novelty), size=.5, pch=21
-        #) + geom_smooth(aes(x=Time, y = cfial_bin, colour=novelty), se=F, span = loessSpan
-		) + coord_cartesian(ylim=c(0,1)) + geom_hline(yintercept = .5, linetype = 'dotted'
-		) + ylab('Proportion Fixations on Target') + xlab('Time in ms') + geom_vline(xintercept=0,
-		colour='black') + ggtitle(paste(group_name,': Novelty (n=',num_participants,')',sep='')) + facet_wrap(
-        ~target)  + theme_classic(
-        ) + theme(axis.text.x = element_text(angle = 90, hjust = 1
-        )) + scale_x_continuous( breaks=seq(from=-3000,to=8000,by=1000)
-        ) + annotate("text", x=-1200, y=.97, size=2.5,  colour='black', label='noun offset & start of /s/ or /z/'
-        ) + coord_cartesian(ylim=c(0,1), xlim=c(x_start, x_end)) 
-
-    if (!is.null(mean_pp_duration)){
-        p1 = p1 + geom_vline(xintercept = mean_pp_duration, colour='darkgreen',
-            linetype='dashed') + annotate("text", x=-1200, y=1.01, size=2.5,  colour='darkgreen', 
-            label='Avg. end of postnominal PP'
-        ) 
-    }
-
-    options(repr.plot.width=7, repr.plot.height=4)
-	print(p1)
-
-	p2 = ggplot(by_voicing)
-	if (groupByParticipant){
-		p2 = p2 + geom_errorbar( data=subset(by_voicing_sem, mod(Time, 100) == 0),
-			aes(x=Time, ymin=sem_low, ymax=sem_high, colour=voicing),  alpha=.25)		
-	}
-	p2 = p2 + geom_point(aes(x=Time, y = cfial_bin, colour=voicing), size=.5, pch=21        		 
-        #+ geom_smooth(aes(x=Time, y = cfial_bin, colour=voicing), se=F, span = loessSpan
-		) + coord_cartesian(ylim=c(0,1)) + geom_hline(yintercept = .5, linetype = 'dotted'
-		) + ylab('Proportion Fixations on Target') + xlab('Time in ms'
-		) + xlab('Time in ms') + geom_vline(xintercept=0, colour='black') + ggtitle(
-	paste(group_name, ': Voicing (n=',num_participants,')', sep='')) + facet_wrap(~target) + theme_bw(
-        ) + theme(axis.text.x = element_text(angle = 90, hjust = 1
-        )) + scale_x_continuous( breaks=seq(from=-3000,to=8000,by=1000)) + annotate("text", x=-1200, y=.97, size=2.5,  colour='black', label='noun offset & start of /s/ or /z/'
-        ) + coord_cartesian(ylim=c(0,1), xlim=c(x_start, x_end))
-	 
-
-     if (!is.null(mean_pp_duration)){
-        p2 = p2 + geom_vline(xintercept = mean_pp_duration, colour='darkgreen',
-            linetype='dashed') + annotate("text", x=-1200, y=1.01, size=2.5,  colour='darkgreen', 
-            label='Avg. end of postnominal PP'
-        ) 
-    }
-    print(p2)
-
-
-
-
-	p3 = ggplot(by_animacy)
-	if (groupByParticipant){
-		p3 = p3 + geom_errorbar( data=subset(by_animacy_sem, mod(Time, 100) == 0) ,
-			aes(x=Time, ymin=sem_low, ymax=sem_high, colour=animacystatus),  alpha=.25)		
-	}
-	p3 = p3 + geom_point(aes(x=Time, y = cfial_bin, colour=animacystatus), size=.5, pch=21 
-		#) + geom_smooth(aes(x=Time, y = cfial_bin, colour=animacystatus), se=F, span = loessSpan
-		) + coord_cartesian(ylim=c(0,1)) + geom_hline(yintercept = .5, linetype = 'dotted'
-		) + ylab('Percent Fixations on Target') + xlab('Time in ms') + geom_vline(xintercept=0, 
-		colour='black') + ggtitle(paste(group_name, ': Animacy (n=',num_participants,')', sep='')) + facet_wrap(~target) + theme_bw() + theme(axis.text.x = element_text(angle = 90, hjust = 1
-        )) + scale_x_continuous( breaks=seq(from=-3000,to=8000,by=1000)) + annotate("text", x=-1200, y=.97, size=2.5,  colour='black', label='noun offset & start of /s/ or /z/'
-        ) + coord_cartesian(ylim=c(0,1), xlim=c(x_start, x_end))
-
-    if (!is.null(mean_pp_duration)){
-        p3 = p3 + geom_vline(xintercept = mean_pp_duration, colour='darkgreen',
-            linetype='dashed') + annotate("text", x=-1200, y=1.01, size=2.5,  colour='darkgreen', 
-            label='Avg. end of postnominal PP'
-        ) 
-    }
-
-	print(p3)
-
-    p4 = ggplot(by_label_at_onset)
-    if (groupByParticipant){
-        p4 = p4 + geom_errorbar( data=by_label_at_onset_sem,
-            aes(x=Time, ymin=sem_low, ymax=sem_high), colour="red",  alpha=.25)     
-    } 
-    p4 = p4 + geom_point(aes(x=Time, y = cfial_bin), colour ="black", size=.5
-        ) + coord_cartesian(ylim=c(0,1)) + geom_hline(yintercept = .5, linetype = 'dotted'
-        ) + ylab('Percent Fixations on Target') + xlab('Time in ms') + geom_vline(xintercept=0, 
-        colour='black') + ggtitle(paste(group_name, ': Label ',delay_ms, 'ms after disambig. (n=',num_participants,')', sep='')) + theme_bw() + facet_wrap(~label_at_onset) + geom_vline(xintercept=delay_ms, colour='orange'
-        ) + coord_cartesian(xlim=c(x_start,x_end)) + annotate("text", x=2700, y=.25, size=2.5,  colour='orange', 
-            label=paste(delay_ms,'after disambiguation')
-        ) 
-    print(p4)
-
-    return(group_fixbins_coded)
-
+    getGroupPlot(fixbins_df, 
+        filter_clause = filter_clause,
+        grouping_var = 'target',
+        facet_clause = '~ novelty',
+        facet_type = 'grid',
+        loessSpan = loessSpan,
+        x_start = x_start, 
+        x_end = x_end,
+        mean_pp_duration= mean_pp_duration,
+        delay_ms = delay_ms,
+        group_title = group_title)
 }
-#################################################################################
+
+getGroupPlot = function(
+    ###
+    # Wrapper function for constrasting eyetracking plots
+    ###
+
+    fixbins_df,
+    grouping_var = NULL,
+    filter_clause = NULL, # subset statement for what to include in this analysis
+    facet_clause = NULL, # statement for how to facet
+    facet_type = NULL, # wrap or grid?
+    loessSpan,  
+    x_start, # span of the graph to show
+    x_end,
+    mean_pp_duration, # x position of vertical line to indicate mean PP duration
+    delay_ms,
+    group_title = ''){
+
+
+    # Examplse of a dynamic subsetting
+    #eval(parse(text="test = subset(subject_info, id=='pl00')"))
+    if (!is.null(filter_clause)){
+        eval( parse( text= paste0(
+            "fixbins_df_filtered = subset(fixbins_df, ",
+            filter_clause,
+            ")"
+        )))
+    } else {
+        fixbins_df_filtered = fixbins_df
+    }
+    fixbins_df_filtered$cfial_bin = as.numeric(fixbins_df_filtered$CURRENT_FIX_INTEREST_AREA_LABEL == 'TARGET')
+
+    # build up the aggregation statement programatically
+    agg_by = c('Time')
+
+    # group var, if present, is part of the aggregation equation
+    if (!is.null(grouping_var)){
+        agg_by = c(agg_by, grouping_var)
+    } 
+
+    if (!is.null(facet_clause)){
+        # add anything that isn't a tilde from the facet clause to the aggregation equation
+        print('facet clause:')
+        print(facet_clause)
+        facet_vars = strsplit(facet_clause,' ')[[1]]
+        facet_vars = facet_vars[facet_vars != '~']
+        agg_by = c(agg_by, paste(facet_vars, collapse="+"))
+    }     
+
+    agg_statement = paste0(
+        'cfial_bin ~ ', paste(agg_by, collapse = ' + ') 
+    )
+    print('Final aggregate statement is:')
+    print(agg_statement)
+    
+
+    # Get the participant means first
+    participant_mean_df  = aggregate(as.formula(paste(agg_statement, '+ filename')), fixbins_df_filtered, 
+        function(x){mean=mean(x, na.rm=T)})    
+    
+    # Then get the aggregate statistics
+    aggregated_means  = aggregate(as.formula(c(agg_statement)), participant_mean_df, function(x){mean=mean(x, na.rm=T)})    
+
+    aggregated_sem = do.call(data.frame, aggregate(as.formula(agg_statement), participant_mean_df, sem))
+    names(aggregated_sem)[names(aggregated_sem) == 'cfial_bin.1'] = 'cfial_low'
+    names(aggregated_sem)[names(aggregated_sem) == 'cfial_bin.2'] = 'cfial_high'    
+
+    #initial plot
+    p1 = ggplot(aggregated_means)
+
+    # SEMs get added first
+    if (!is.null(grouping_var)){
+     p1 = p1 + geom_errorbar( data=subset(aggregated_sem, mod(Time, 100) == 0), aes_string(x='Time', ymin='cfial_low', ymax='cfial_high', colour =grouping_var), alpha=.25)
+    } else {
+        # do not pass grouping_var to aes as the color specification
+        p1 = p1 + geom_errorbar( data=subset(aggregated_sem, mod(Time, 100) == 0), aes_string(x='Time', ymin='cfial_low', ymax='cfial_high'), alpha=.25)
+    } 
+
+    # Means get addded 2nd
+    if (!is.null(grouping_var)){
+        p1 = p1 + geom_point(aes_string(x='Time', y = 'cfial_bin', colour=grouping_var), size=.5, pch=21)
+        p1 = p1 + geom_line(aes_string(x='Time', y = 'cfial_bin', colour=grouping_var, group= grouping_var), size=.5, pch=21)         
+    } else {
+        p1 = p1 + geom_point(aes_string(x='Time', y = 'cfial_bin'), size=.5, pch=21)         
+    }   
+
+    if (! is.null(mean_pp_duration)){
+        p1 = p1 + geom_vline(xintercept = mean_pp_duration, colour="darkgreen", linetype = "dashed")
+    }
+
+    # add the constants for all plots
+    p1 = p1 + coord_cartesian(ylim=c(0,1), xlim=c(x_start, x_end)) + geom_hline(yintercept = .5, linetype = 'dotted') + ylab('Proportion Fixations to Target') + xlab('Time in ms') + geom_vline(xintercept=0, colour='black') + ggtitle(
+        paste0(group_title, ": ", grouping_var, " (n = ", length(unique(participant_mean_df$filename)),")")) + theme_bw()  
+    
+    if (!is.null(facet_clause)){
+        # grouping step / pre-processing depends on the faceting
+        # Adapt the code I wrote for ELSSP
+        facet_eq = as.formula(facet_clause)
+        if (facet_type == 'grid'){
+            p1 = p1 + facet_grid(facet_eq)
+        } else if (facet_type == 'wrap'){
+            p1 = p1 + facet_wrap(facet_eq)
+        }
+
+    }
+    options(repr.plot.width=8, repr.plot.height=4)
+    print(p1)    
+    #[ ] add back the count of the participants that are yieleded by filtering
+}
+
+# #################################################################################
 
 getTrialRT = function(gaze_trials, delay_ms=367, label_colname='CURRENT_FIX_INTEREST_AREA_LABEL', metadata_cols, buffer_ms=200, include_non_roi_label=T, target_labels=c("TARGET"), non_target_labels=c("DISTRACTOR")){
 
@@ -530,19 +594,25 @@ getTrialRT = function(gaze_trials, delay_ms=367, label_colname='CURRENT_FIX_INTE
     } else {
         # there's track loss at the time specified by delay_ms, so use this recovery rule. Recovery is parameterized by how far back to look for a non-NA fixation; up to buffer_ms
         track_loss_at_0 = T        
-        non_na_fix_before_disambig = subset(gaze_trials, CURRENT_FIX_START < delay_ms & gaze_trial[[label_colname]] 
-                            %in% c(target_labels,non_target_labels))        
+        non_na_fix_before_disambig = gaze_trials[
+            (gaze_trials$CURRENT_FIX_START < delay_ms) & 
+            (gaze_trials[[label_colname]] %in% c(target_labels,non_target_labels)),
+        ]
         
         non_na_fix_before_disambig = non_na_fix_before_disambig[order(non_na_fix_before_disambig$CURRENT_FIX_INDEX, decreasing=T),]
 
         last_fix = non_na_fix_before_disambig[1,]
         diff = (delay_ms - last_fix$CURRENT_FIX_END) 
         # current_fix_end will be smaller than delay_ms
-        if (diff < buffer_ms){ 
-            time_to_last_nonna = diff
-        }  else {
+        if (is.na(diff)){
             time_to_last_nonna = NA
-        } 
+        } else {
+            if (diff < buffer_ms){ 
+                time_to_last_nonna = diff
+            }  else {
+                time_to_last_nonna = NA  
+            } 
+        }
     }
 
     
