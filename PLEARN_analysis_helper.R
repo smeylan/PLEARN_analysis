@@ -22,7 +22,7 @@ getAudioTimings = function(glob){
 	return(audio_timings)
 }
 
-analyzeParticipant = function(fixreport_path, audio_timings, participant_type){
+analyzeParticipant = function(fixreport_path, audio_timings, participant_type, plot=F){
 	
 	participant_name = gsub('.txt','',tail(strsplit(fixreport_path, '/')[[1]]))[2]
 
@@ -78,38 +78,39 @@ analyzeParticipant = function(fixreport_path, audio_timings, participant_type){
 	by_voicing = aggregate(cfial_bin ~ Time + voicing + target, fixbins_coded, mean)
 	by_animacy = aggregate(cfial_bin ~ Time + animacystatus + target, fixbins_coded, mean)
 
+    if (plot){
+        options(repr.plot.width=8, repr.plot.height=4)
 
-    options(repr.plot.width=8, repr.plot.height=4)
-
-	p0 = ggplot(no_conditioning) + geom_point(aes(x=Time, y = cfial_bin)
-	) + geom_smooth(aes(x=Time, y = cfial_bin)
-	) + coord_cartesian(ylim=c(0,1)) + geom_hline(yintercept = .5, linetype = 'dotted'
-	) + ylab('Percent Fixations on Target') + xlab('Time in ms') + geom_vline(xintercept=0,
-	colour='black') + ggtitle(participant_name)  + facet_wrap(~target)
-	print(p0)
+    	p0 = ggplot(no_conditioning) + geom_point(aes(x=Time, y = cfial_bin)
+    	) + geom_smooth(aes(x=Time, y = cfial_bin)
+    	) + coord_cartesian(ylim=c(0,1)) + geom_hline(yintercept = .5, linetype = 'dotted'
+    	) + ylab('Percent Fixations on Target') + xlab('Time in ms') + geom_vline(xintercept=0,
+    	colour='black') + ggtitle(participant_name)  + facet_wrap(~target)
+    	print(p0)
 
 
-	p1 = ggplot(by_novelty) + geom_point(aes(x=Time, y = cfial_bin, colour=novelty)
-	) + geom_smooth(aes(x=Time, y = cfial_bin, colour=novelty)
-	) + coord_cartesian(ylim=c(0,1)) + geom_hline(yintercept = .5, linetype = 'dotted'
-	) + ylab('Percent Fixations on Target') + xlab('Time in ms') + geom_vline(xintercept=0,
-	colour='black') + ggtitle(paste(participant_name, ': Novelty', sep='')) + facet_wrap(~target)
-	print(p1)
+    	p1 = ggplot(by_novelty) + geom_point(aes(x=Time, y = cfial_bin, colour=novelty)
+    	) + geom_smooth(aes(x=Time, y = cfial_bin, colour=novelty)
+    	) + coord_cartesian(ylim=c(0,1)) + geom_hline(yintercept = .5, linetype = 'dotted'
+    	) + ylab('Percent Fixations on Target') + xlab('Time in ms') + geom_vline(xintercept=0,
+    	colour='black') + ggtitle(paste(participant_name, ': Novelty', sep='')) + facet_wrap(~target)
+    	print(p1)
 
-	p2 = ggplot(by_voicing) + geom_point(aes(x=Time, y = cfial_bin, colour=voicing)
-	) + geom_smooth(aes(x=Time, y = cfial_bin, colour=voicing)
-	) + coord_cartesian(ylim=c(0,1)) + geom_hline(yintercept = .5, linetype = 'dotted'
-	) + ylab('Percent Fixations on Target') + xlab('Time in ms'
-	) + xlab('Time in ms') + geom_vline(xintercept=0, colour='black') + ggtitle(paste(participant_name, 
-	': Voicing', sep='')) + facet_wrap(~target)
-	print(p2)
+    	p2 = ggplot(by_voicing) + geom_point(aes(x=Time, y = cfial_bin, colour=voicing)
+    	) + geom_smooth(aes(x=Time, y = cfial_bin, colour=voicing)
+    	) + coord_cartesian(ylim=c(0,1)) + geom_hline(yintercept = .5, linetype = 'dotted'
+    	) + ylab('Percent Fixations on Target') + xlab('Time in ms'
+    	) + xlab('Time in ms') + geom_vline(xintercept=0, colour='black') + ggtitle(paste(participant_name, 
+    	': Voicing', sep='')) + facet_wrap(~target)
+    	print(p2)
 
-	p3 = ggplot(by_animacy) + geom_point(aes(x=Time, y = cfial_bin, colour=animacystatus)
-	) + geom_smooth(aes(x=Time, y = cfial_bin, colour=animacystatus)
-	) + coord_cartesian(ylim=c(0,1)) + geom_hline(yintercept = .5, linetype = 'dotted'
-	) + ylab('Percent Fixations on Target') + xlab('Time in ms') + geom_vline(xintercept=0, 
-	colour='black') + ggtitle(paste(participant_name, ': Animacy', sep='')) + facet_wrap(~target)
-	print(p3)
+    	p3 = ggplot(by_animacy) + geom_point(aes(x=Time, y = cfial_bin, colour=animacystatus)
+    	) + geom_smooth(aes(x=Time, y = cfial_bin, colour=animacystatus)
+    	) + coord_cartesian(ylim=c(0,1)) + geom_hline(yintercept = .5, linetype = 'dotted'
+    	) + ylab('Percent Fixations on Target') + xlab('Time in ms') + geom_vline(xintercept=0, 
+    	colour='black') + ggtitle(paste(participant_name, ': Animacy', sep='')) + facet_wrap(~target)
+    	print(p3)
+    }
 
 	return(fixbins)
 
@@ -326,13 +327,15 @@ getPlotForMethod = function(fixbin_dfs, adult_fixbin_dfs, methodName){
 
 }
 
-
 getGroupPlots = function(fixbins, groupByParticipant = F, loessSpan=.2,
-	x_start = -3000, x_end=4000, mean_pp_duration=NULL, delay_ms=367){
+	x_start = -3000, x_end=4000, mean_pp_duration=NULL, delay_ms=367,
+    group_name){
 	group_fixbins = do.call('rbind', fixbins)
 	group_fixbins_coded = subset(group_fixbins, CURRENT_FIX_INTEREST_AREA_LABEL %in% c(
 	'TARGET','DISTRACTOR')) #& Time < 3000
 	group_fixbins_coded$cfial_bin = as.numeric(group_fixbins_coded$CURRENT_FIX_INTEREST_AREA_LABEL == 'TARGET')
+    num_participants = length(unique(group_fixbins_coded$participant_name))
+
 
 	if(!groupByParticipant) {
 		no_conditioning = aggregate(cfial_bin ~ Time + target, group_fixbins_coded, mean)
@@ -344,7 +347,7 @@ getGroupPlots = function(fixbins, groupByParticipant = F, loessSpan=.2,
 	} else {
 		print(names(group_fixbins_coded))
 		
-		no_conditioning_by_participant = aggregate(cfial_bin ~ Time + target + participant_name, group_fixbins_coded, mean)
+		no_conditioning_by_participant = aggregate(cfial_bin ~ Time + target + participant_name, group_fixbins_coded, mean)        
 		no_conditioning = aggregate(cfial_bin ~ Time + target, no_conditioning_by_participant, mean)
 		no_conditioning_sem  = do.call(data.frame, aggregate(cfial_bin ~ Time + target, no_conditioning_by_participant, sem))
 		names(no_conditioning_sem) = c('Time','target', 'sem_high','sem_low')
@@ -378,53 +381,101 @@ getGroupPlots = function(fixbins, groupByParticipant = F, loessSpan=.2,
 	if (groupByParticipant){
 		p0 = p0 + geom_errorbar( data=no_conditioning_sem,
 			aes(x=Time, ymin=sem_low, ymax=sem_high), colour='red', alpha=.25)		
-	}
+	}        
 	p0 = p0 + geom_point(aes(x=Time, y = cfial_bin), size=.5
 		) + geom_smooth(aes(x=Time, y = cfial_bin), se=F, span = loessSpan
 		) + coord_cartesian(ylim=c(0,1), xlim=c(x_start, x_end)) + geom_hline(yintercept = .5, linetype = 'dotted'
-		) + ylab('Percent Fixations on Target') + xlab('Time in ms') + geom_vline(xintercept=0,
-		colour='black')  + facet_wrap(~target) + ggtitle('all trials') + theme_bw() + scale_x_continuous( breaks=seq(from=-3000,to=8000,by=1000), labels=seq(from=-3000, to=8000,by=1000)) + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+		) + ylab('Proportion Fixations on Target') + xlab('Time in ms') + geom_vline(xintercept=0,
+		colour='black')  + facet_wrap(~target) + ggtitle(
+
+        paste(group_name, ' (n=',num_participants,')', sep='')) + theme_bw() + scale_x_continuous( 
+        breaks=seq(from=-3000,to=8000,by=1000), labels=seq(from=-3000, to=8000,by=1000)) + theme(
+        axis.text.x = element_text(angle = 90, hjust = 1)
+        ) + annotate("text", x=-1200, y=.97, size=2.5,  colour='black', label='noun offset & start of /s/ or /z/')
+
+
 	if (!is.null(mean_pp_duration)){
 		p0 = p0 + geom_vline(xintercept = mean_pp_duration, colour='darkgreen',
-			linetype='dashed')
+			linetype='dashed') + annotate("text", x=-1200, y=1.01, size=2.5,  colour='darkgreen',
+             label='Avg. end of postnominal PP'
+        )
 	}
+    options(repr.plot.width=6, repr.plot.height=4)
 	print(p0)
 
 	p1 = ggplot(by_novelty) 
 	if(groupByParticipant){
-		p1 = p1 + geom_errorbar( data=by_novelty_sem,
+		p1 = p1 + geom_errorbar( data=subset(by_novelty_sem, mod(Time, 100) == 0),
 			aes(x=Time, ymin=sem_low, ymax=sem_high, colour=novelty), alpha=.25)		
 	}
-	p1 = p1 + geom_point(aes(x=Time, y = cfial_bin, colour=novelty)
-		) + geom_smooth(aes(x=Time, y = cfial_bin, colour=novelty), se=F, span = loessSpan
+	p1 = p1 + geom_point(aes(x=Time, y = cfial_bin, colour=novelty), size=.5, pch=21
+        #) + geom_smooth(aes(x=Time, y = cfial_bin, colour=novelty), se=F, span = loessSpan
 		) + coord_cartesian(ylim=c(0,1)) + geom_hline(yintercept = .5, linetype = 'dotted'
-		) + ylab('Percent Fixations on Target') + xlab('Time in ms') + geom_vline(xintercept=0,
-		colour='black') + ggtitle('Novelty') + facet_wrap(~target) + theme_bw()
+		) + ylab('Proportion Fixations on Target') + xlab('Time in ms') + geom_vline(xintercept=0,
+		colour='black') + ggtitle(paste(group_name,': Novelty (n=',num_participants,')',sep='')) + facet_wrap(
+        ~target)  + theme_classic(
+        ) + theme(axis.text.x = element_text(angle = 90, hjust = 1
+        )) + scale_x_continuous( breaks=seq(from=-3000,to=8000,by=1000)
+        ) + annotate("text", x=-1200, y=.97, size=2.5,  colour='black', label='noun offset & start of /s/ or /z/'
+        ) + coord_cartesian(ylim=c(0,1), xlim=c(x_start, x_end)) 
+
+    if (!is.null(mean_pp_duration)){
+        p1 = p1 + geom_vline(xintercept = mean_pp_duration, colour='darkgreen',
+            linetype='dashed') + annotate("text", x=-1200, y=1.01, size=2.5,  colour='darkgreen', 
+            label='Avg. end of postnominal PP'
+        ) 
+    }
+
+    options(repr.plot.width=7, repr.plot.height=4)
 	print(p1)
 
 	p2 = ggplot(by_voicing)
 	if (groupByParticipant){
-		p2 = p2 + geom_errorbar( data=by_voicing_sem,
+		p2 = p2 + geom_errorbar( data=subset(by_voicing_sem, mod(Time, 100) == 0),
 			aes(x=Time, ymin=sem_low, ymax=sem_high, colour=voicing),  alpha=.25)		
 	}
-	p2 = p2 + geom_point(aes(x=Time, y = cfial_bin, colour=voicing)
-		) + geom_smooth(aes(x=Time, y = cfial_bin, colour=voicing), se=F, span = loessSpan
+	p2 = p2 + geom_point(aes(x=Time, y = cfial_bin, colour=voicing), size=.5, pch=21        		 
+        #+ geom_smooth(aes(x=Time, y = cfial_bin, colour=voicing), se=F, span = loessSpan
 		) + coord_cartesian(ylim=c(0,1)) + geom_hline(yintercept = .5, linetype = 'dotted'
-		) + ylab('Percent Fixations on Target') + xlab('Time in ms'
+		) + ylab('Proportion Fixations on Target') + xlab('Time in ms'
 		) + xlab('Time in ms') + geom_vline(xintercept=0, colour='black') + ggtitle(
-	'Voicing') + facet_wrap(~target) + theme_bw()
-	print(p2)
+	paste(group_name, ': Voicing (n=',num_participants,')', sep='')) + facet_wrap(~target) + theme_bw(
+        ) + theme(axis.text.x = element_text(angle = 90, hjust = 1
+        )) + scale_x_continuous( breaks=seq(from=-3000,to=8000,by=1000)) + annotate("text", x=-1200, y=.97, size=2.5,  colour='black', label='noun offset & start of /s/ or /z/'
+        ) + coord_cartesian(ylim=c(0,1), xlim=c(x_start, x_end))
+	 
+
+     if (!is.null(mean_pp_duration)){
+        p2 = p2 + geom_vline(xintercept = mean_pp_duration, colour='darkgreen',
+            linetype='dashed') + annotate("text", x=-1200, y=1.01, size=2.5,  colour='darkgreen', 
+            label='Avg. end of postnominal PP'
+        ) 
+    }
+    print(p2)
+
+
+
 
 	p3 = ggplot(by_animacy)
 	if (groupByParticipant){
-		p3 = p3 + geom_errorbar( data=by_animacy_sem,
+		p3 = p3 + geom_errorbar( data=subset(by_animacy_sem, mod(Time, 100) == 0) ,
 			aes(x=Time, ymin=sem_low, ymax=sem_high, colour=animacystatus),  alpha=.25)		
 	}
-	p3 = p3 + geom_point(aes(x=Time, y = cfial_bin, colour=animacystatus)
-		) + geom_smooth(aes(x=Time, y = cfial_bin, colour=animacystatus), se=F, span = loessSpan
+	p3 = p3 + geom_point(aes(x=Time, y = cfial_bin, colour=animacystatus), size=.5, pch=21 
+		#) + geom_smooth(aes(x=Time, y = cfial_bin, colour=animacystatus), se=F, span = loessSpan
 		) + coord_cartesian(ylim=c(0,1)) + geom_hline(yintercept = .5, linetype = 'dotted'
 		) + ylab('Percent Fixations on Target') + xlab('Time in ms') + geom_vline(xintercept=0, 
-		colour='black') + ggtitle('Animacy') + facet_wrap(~target) + theme_bw()
+		colour='black') + ggtitle(paste(group_name, ': Animacy (n=',num_participants,')', sep='')) + facet_wrap(~target) + theme_bw() + theme(axis.text.x = element_text(angle = 90, hjust = 1
+        )) + scale_x_continuous( breaks=seq(from=-3000,to=8000,by=1000)) + annotate("text", x=-1200, y=.97, size=2.5,  colour='black', label='noun offset & start of /s/ or /z/'
+        ) + coord_cartesian(ylim=c(0,1), xlim=c(x_start, x_end))
+
+    if (!is.null(mean_pp_duration)){
+        p3 = p3 + geom_vline(xintercept = mean_pp_duration, colour='darkgreen',
+            linetype='dashed') + annotate("text", x=-1200, y=1.01, size=2.5,  colour='darkgreen', 
+            label='Avg. end of postnominal PP'
+        ) 
+    }
+
 	print(p3)
 
     p4 = ggplot(by_label_at_onset)
@@ -435,7 +486,10 @@ getGroupPlots = function(fixbins, groupByParticipant = F, loessSpan=.2,
     p4 = p4 + geom_point(aes(x=Time, y = cfial_bin), colour ="black", size=.5
         ) + coord_cartesian(ylim=c(0,1)) + geom_hline(yintercept = .5, linetype = 'dotted'
         ) + ylab('Percent Fixations on Target') + xlab('Time in ms') + geom_vline(xintercept=0, 
-        colour='black') + ggtitle('Labet at Onset') + theme_bw() + facet_wrap(~label_at_onset) + geom_vline(xintercept=delay_ms, colour='darkgreen') + coord_cartesian(xlim=c(-2000,2000))
+        colour='black') + ggtitle(paste(group_name, ': Label ',delay_ms, 'ms after disambig. (n=',num_participants,')', sep='')) + theme_bw() + facet_wrap(~label_at_onset) + geom_vline(xintercept=delay_ms, colour='orange'
+        ) + coord_cartesian(xlim=c(x_start,x_end)) + annotate("text", x=2700, y=.25, size=2.5,  colour='orange', 
+            label=paste(delay_ms,'after disambiguation')
+        ) 
     print(p4)
 
     return(group_fixbins_coded)
@@ -662,3 +716,55 @@ augmentFixbinsWithFixationAtOnset = function(delay_ms, fixbins, label_colname, b
     }))        
     return(participant_fixbins)    
 }   
+
+
+computePreferenceBeforeDisambig = function(adult_fixbins_coded){
+    beforeafter_disambig_df = subset(adult_fixbins_coded, 
+    CURRENT_FIX_INTEREST_AREA_LABEL %in% c('TARGET','DISTRACTOR'))
+    beforeafter_disambig_df$looking_at_plural = 0
+    beforeafter_disambig_df$looking_at_plural[
+        beforeafter_disambig_df$CURRENT_FIX_INTEREST_AREA_LABEL == 'TARGET' & 
+        beforeafter_disambig_df$target == 'pl'] = 1
+    beforeafter_disambig_df$looking_at_plural[
+        beforeafter_disambig_df$CURRENT_FIX_INTEREST_AREA_LABEL == 'DISTRACTOR' & 
+        beforeafter_disambig_df$target == 's'] = 1
+    beforeafter_disambig_df$beforeafter = 'After Disambiguation'
+    beforeafter_disambig_df$beforeafter[beforeafter_disambig_df$Time < 367] = 'Before Disambiguation'
+    beforeafter_disambig_preference = aggregate(looking_at_plural ~ participant_name + beforeafter + TRIAL_INDEX, 
+        beforeafter_disambig_df, mean)
+
+    beforeafter_disambig_by_subject = do.call(data.frame, aggregate(looking_at_plural ~ participant_name +  beforeafter, beforeafter_disambig_preference, FUN = function(x){c(mean=mean(x), sd = sd(x))}))                                       
+
+    #print(beforeafter_disambig_by_subject)
+
+    beforeafter_disambig_by_subject$looking_at_plural_low = 
+    beforeafter_disambig_by_subject$looking_at_plural.mean - beforeafter_disambig_by_subject$looking_at_plural.sd
+    beforeafter_disambig_by_subject$looking_at_plural_high = 
+    beforeafter_disambig_by_subject$looking_at_plural.mean + beforeafter_disambig_by_subject$looking_at_plural.sd
+
+    options(repr.plot.width=4, repr.plot.height=4)
+    ggplot(subset(beforeafter_disambig_by_subject, beforeafter == "Before Disambiguation"
+    )) + geom_errorbar(aes(x=participant_name, ymin= looking_at_plural_low,
+     ymax= looking_at_plural_high), color='red') + geom_point(aes(x=participant_name, 
+    y=looking_at_plural.mean)) + theme_classic() + geom_hline(yintercept=.5, linetype = 'dashed'
+    ) + xlab('Participant') + ylab('Avg. Proportion Looks to Plural\n Before Disambiguation (SD)'
+    ) + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+}
+
+getPropTargetLooking = function(child_fixbins_coded,  x_end, subset_statement=NULL){
+    if (!is.null(subset_statement)){
+        stop('subsetting not implemented yet')
+    }
+
+    in_interval = subset(child_fixbins_coded, (Time > 367) & Time < x_end & CURRENT_FIX_INTEREST_AREA_LABEL %in%
+        c('TARGET', 'DISTRACTOR'))
+
+    in_interval$looking_to_target = in_interval$CURRENT_FIX_INTEREST_AREA_LABEL == 'TARGET'
+    prop_looking = aggregate(looking_to_target ~ participant_name, in_interval, mean)
+    prop_looking$child = sapply(strsplit(prop_looking$participant_name,'_'), function(x){x[1]})
+    return(prop_looking)
+}
+    
+
+
+
