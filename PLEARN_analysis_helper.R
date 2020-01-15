@@ -14,7 +14,7 @@ getAudioTimingsFromFile = function(path){
     audio_timings = data.frame(do.call('rbind', fromJSON(file = path)))
     audio_timings$disambig_time_from_0 = as.numeric(audio_timings$disambig_time_from_0)
     audio_timings$disambig_time = 2000+(1000*audio_timings$disambig_time_from_0)
-    audio_timings$audiotarget = audio_timings$file
+    audio_timings$audiotarget = sapply(audio_timings$file, trimws)
     return(audio_timings)
 }
 
@@ -39,7 +39,7 @@ getAudioTimingsFromGlob = function(glob){
 }
 
 
-analyzeEyetrackingParticipant = function(result_dir, filename, audio_timings, participant_type, plot=F){	
+analyzeEyetrackingParticipant = function(result_dir, filename, audio_timings, participant_type, plot=F, haltOnMissing=F){	
     ### 
     # Process a single eyetracking participant (study-specific wrapper for blabr::fixations_report)
     ###
@@ -63,13 +63,37 @@ analyzeEyetrackingParticipant = function(result_dir, filename, audio_timings, pa
     }
     
 	gaze = blabr::fixations_report(fixreport_path)
-	gaze = merge(gaze, audio_timings[,c('audiotarget','disambig_time')])
+
+    if (length(unique(gaze$TRIAL_INDEX)) < 32){
+        if (haltOnMissing){
+            stop('Missing trials in the original data')
+        } else {
+            print('Missing trials in the original data') 
+        }
+    } else {
+        print('Correct number of trials in the original data')
+    } 
+    num_trials_raw_data = length(unique(gaze$TRIAL_INDEX))
+	
+
+    gaze = merge(gaze, audio_timings[,c('audiotarget','disambig_time')])
 
 	#zero with respect to the disambiguation time
 	gaze$CURRENT_FIX_END = gaze$CURRENT_FIX_END - gaze$disambig_time
 	gaze$CURRENT_FIX_START = gaze$CURRENT_FIX_START - gaze$disambig_time
 
-	fixbins = binifyFixations(gaze, keepCols=c(
+    if (length(unique(gaze$TRIAL_INDEX)) < num_trials_raw_data){
+        if (haltOnMissing){
+            stop('Missing trials in merging with audio timings')
+        } else {
+            print('Missing trials in merging with audio timings')
+        }
+    } else {
+        print('Correct number of trials in merging with audio timings')
+    } 
+
+    binSize = 20
+	fixbins = binifyFixations(gaze, binSize=binSize, keepCols=c(
     "CURRENT_FIX_START",
     "CURRENT_FIX_END",
     "TRIAL_INDEX",
@@ -88,7 +112,63 @@ analyzeEyetrackingParticipant = function(result_dir, filename, audio_timings, pa
     fixbins$participant_type = participant_type
     fixbins$participant_name = participant_name
 
+    
+    # Exclusion logic: identify bad trials and subjects here; note that in fixbins
+    
+    
+    # drop trials where they only looked at one panel the whole time (not just window of interest)   
+    looks_to_t_per_trial = aggregate(Time ~ expt_index  , 
+                subset(fixbins, CURRENT_FIX_INTEREST_AREA_LABEL == 'TARGET'), function(x){length(x)*binSize})
+    names(looks_to_t_per_trial) = c('expt_index', 'looks_to_t')
+    looks_to_d_per_trial = aggregate(Time ~ expt_index  , 
+                subset(fixbins, CURRENT_FIX_INTEREST_AREA_LABEL == 'DISTRACTOR'), function(x){length(x)*binSize})
+    names(looks_to_d_per_trial) = c('expt_index', 'looks_to_d')
+    
+    # drop trials looking at less than 1/3 of the window of interest
+    looks_to_td_in_window = aggregate(Time ~ expt_index , 
+                subset(fixbins, CURRENT_FIX_INTEREST_AREA_LABEL %in% c('TARGET','DISTRACTOR') & Time > 367 & Time < 4000),
+                    function(x){length(x)*binSize})
+    names(looks_to_td_in_window) = c('expt_index', 'looks_to_td')
+    looks_to_td_per_trial = merge(merge(looks_to_t_per_trial, looks_to_d_per_trial, all=T), looks_to_td_in_window, all=T)
+
+    looks_to_td_per_trial[is.na(looks_to_td_per_trial)] = 0
+
+    looks_to_td_per_trial$exclude_trial =  (looks_to_td_per_trial$looks_to_t == 0) |
+                                           (looks_to_td_per_trial$looks_to_d == 0) |
+                                           (looks_to_td_per_trial$looks_to_td < (1/3) *(4000 - 367))   
+    looks_to_td_per_trial$exclude_subject = F                                          
+    
+    # check if more than half of the trials were dropped for one of the above reasons
+    if (mean(looks_to_td_per_trial$exclude_trial) > .5){
+        looks_to_td_per_trial$exclude_subject = T
+        looks_to_td_per_trial$exclude_trial = T
+    }
+    
+    fixbins = merge(fixbins, looks_to_td_per_trial)
+
+
+    if (length(unique(fixbins$TRIAL_INDEX)) < num_trials_raw_data){
+        if (haltOnMissing){
+            stop('Lost trials in binning procedure')
+        } else {
+            print('Lost trials in binning procedure')
+        }
+    } else{
+        print('Correct number of trials after binning procedure')
+    }
+
+
     fixbins = augmentFixbinsWithFixationAtOnset(367, fixbins, label_colname = "CURRENT_FIX_INTEREST_AREA_LABEL", buffer_ms = 200)
+
+    if (length(unique(fixbins$TRIAL_INDEX)) < num_trials_raw_data){
+        if (haltOnMissing){
+            stop('Lost trials in augmentation')
+        } else {
+            print('Lost trials in augmentation')
+        }
+    } else {
+        print('Correct number of trials after augmentation')
+    }
 
     
     fixbins_coded = subset(fixbins, CURRENT_FIX_INTEREST_AREA_LABEL %in% c('TARGET','DISTRACTOR')
@@ -142,37 +222,64 @@ analyzeEyetrackingParticipant = function(result_dir, filename, audio_timings, pa
 
 } 
 
-# Stupid: not taking into account the baseline or yoked pairs
-test_participant_receptive_knowledge = function(fixbins, normalizeMethod = "none", verbose=F, start_analysis_window = 367, end_analysis_window= 2500) {
+test_participant_receptive_knowledge = function(fixbins, normalizeMethod = "none", verbose=F, start_analysis_window = 367, end_analysis_window= 2500, return_type="summaries") {
+    fixbins = subset(fixbins, !exclude_trial)
+
     fixbins$is_looking_at_target  = as.numeric(fixbins$CURRENT_FIX_INTEREST_AREA_LABEL == 'TARGET')
+    fixbins$is_looking_at_distractor  = as.numeric(fixbins$CURRENT_FIX_INTEREST_AREA_LABEL == 'DISTRACTOR')
+    fixbins = subset(fixbins, CURRENT_FIX_INTEREST_AREA_LABEL %in% c('TARGET','DISTRACTOR'))
     fixbins$dummy = 1
     tz_after = subset(fixbins, Time > start_analysis_window & Time < end_analysis_window & practice == 'n')
     
-    ltt = aggregate(is_looking_at_target ~ expt_index + novelty + voicing + dummy + s_form + participant_type, tz_after, mean)
+    ltt = aggregate(cbind(is_looking_at_target, is_looking_at_distractor) ~ expt_index + novelty + voicing + dummy + s_form + participant_type + target, tz_after, mean)
     
+    if (return_type == "trial_level"){
+        trial_level_data =  aggregate(cbind(is_looking_at_target, is_looking_at_distractor) ~ expt_index + novelty + voicing + animacystatus + s_form + participant_type + target +participant_name.x + expt_version, tz_after, mean) 
+        return(trial_level_data)
+    } 
+    
+
+
     
     if (normalizeMethod == 'preceding'){
         colnames(ltt)[colnames(ltt)=="is_looking_at_target"] <- "is_looking_at_target_after"
         tz_before = subset(fixbins, Time <= 367 & practice == 'n')
-        ltt_before = aggregate(is_looking_at_target ~ expt_index + novelty + voicing + participant_type + dummy, tz_before, mean)
+        ltt_before = aggregate(is_looking_at_target ~ expt_index + novelty + voicing + participant_type + target + dummy, tz_before, mean)
         colnames(ltt_before)[colnames(ltt_before)=="is_looking_at_target"] <- "is_looking_at_target_before"
         ltt = merge(ltt, ltt_before)
         ltt$is_looking_at_target = ltt$is_looking_at_target_after - ltt$is_looking_at_target_before
     }
     
     if (normalizeMethod == 'yoked'){
-        ltd = aggregate(!is_looking_at_target ~ expt_index + novelty + voicing + dummy + participant_type +s_form, tz_after, mean)
-        colnames(ltd)[colnames(ltd)=="!is_looking_at_target"] <- "is_looking_at_distractor"
+        #For paired-picture trials, word recognition performance was operationalized
+        # as a difference of fixation proportions: for paired pictures A and B, 
+        # the fixation to picture A relative to B when A was the target
+        # minus the fixation to A when A was the dis- tracter.*
+
+
+        # ltd = looks to distractor, vs. ltt which is computed above. This is for each trial:
+        ltd = aggregate(is_looking_at_distractor ~ expt_index + novelty + voicing + dummy + participant_type + target + s_form, tz_after, mean)        
         
+        #yoke_index = index of the trial where the distractor for this trial is presented as the target
         ltd$yoke_index = sapply(ltd$expt_index, function(x){
             target_s_form = subset(ltd, expt_index == x)$s_form
+            # get back the ltd for the other item that has the same singular form, but doesn't have the same expt_index
             return(subset(ltd, s_form == target_s_form & !(expt_index == x))$expt_index)            
         })
         
-        ltt = merge(ltt, ltd[,c('yoke_index','is_looking_at_distractor')], by.x='expt_index',
+        for_merging = ltd[,c('yoke_index','is_looking_at_distractor')]
+        names(for_merging) = c('yoke_index','prop_looks_to_item_when_distractor')
+
+        ltt = merge(ltt, for_merging, by.x='expt_index',
              by.y='yoke_index')
+        
         #print(ltt)
-        ltt$is_looking_at_target = ltt$is_looking_at_target - ltt$is_looking_at_distractor
+        if (return_type == 'summaries'){
+            # correct is_looking_at_target with the score looking at the distractors
+            ltt$is_looking_at_target = ltt$is_looking_at_target - ltt$prop_looks_to_item_when_distractor 
+        }
+        # 1st term is the proportion of time looking at this item when it is the target; 
+        # 2nd is the proportion of time looking at this item when it is the distractor
         
     }
     
@@ -230,8 +337,14 @@ test_participant_receptive_knowledge = function(fixbins, normalizeMethod = "none
     rdf$dummy = NULL
     rdf$normalizeMethod = normalizeMethod
     rdf$participant_name = gsub('.xlsx', '', gsub('_fixations','',unique(fixbins$participant_name.x)))
-    return(rdf)
-
+    rdf$expt_version  = unique(fixbins$expt_version)
+    if (return_type == "ltt"){
+        ltt$participant_name = gsub('.xlsx', '', gsub('_fixations','',unique(fixbins$participant_name.x)))
+        return(ltt)
+    } else if (return_type == "summaries") {
+        return(rdf)    
+    }
+    
 }
 
 test_bern_vector = function(vec, verbose =  F){
@@ -363,7 +476,8 @@ getGroupPlots = function(
     x_end=3000,
     mean_pp_duration=NULL, # x position of vertical line to indicate mean PP duration
     delay_ms=367,
-    group_title = ''){
+    group_title = '',
+    save_plot=F){
 	
 	fixbins_df_coded = subset(fixbins_df, CURRENT_FIX_INTEREST_AREA_LABEL %in% c(
 	'TARGET','DISTRACTOR')) #& Time < 3000
@@ -378,7 +492,8 @@ getGroupPlots = function(
         x_end = x_end,
         mean_pp_duration= mean_pp_duration,
         delay_ms = delay_ms,
-        group_title = group_title)
+        group_title = group_title,
+        save_plot = save_plot)
 
 
     getGroupPlot(fixbins_df, 
@@ -386,7 +501,11 @@ getGroupPlots = function(
         filter_clause = filter_clause,
         facet_clause = '~ target',
         facet_type = 'wrap',
-        loessSpan, x_start, x_end, mean_pp_duration= mean_pp_duration, delay_ms, group_title)
+        loessSpan, x_start, x_end,
+        mean_pp_duration= mean_pp_duration,
+        delay_ms,
+        group_title,
+        save_plot =save_plot)
     
 
     getGroupPlot(fixbins_df, 
@@ -394,14 +513,24 @@ getGroupPlots = function(
         filter_clause = filter_clause,
         facet_clause = '~ target',
         facet_type = 'wrap',
-        loessSpan, x_start, x_end, mean_pp_duration= mean_pp_duration, delay_ms, group_title)
+        loessSpan, x_start, x_end,
+        mean_pp_duration= mean_pp_duration,
+        delay_ms,
+        group_title,
+        save_plot =save_plot)
 
     getGroupPlot(fixbins_df, 
         grouping_var = 'animacystatus',
         filter_clause = filter_clause,
         facet_clause = '~ target',
         facet_type = 'wrap',
-        loessSpan, x_start, x_end, mean_pp_duration= mean_pp_duration, delay_ms, group_title)
+        loessSpan,
+        x_start,
+        x_end,
+        mean_pp_duration= mean_pp_duration,
+        delay_ms,
+        group_title,
+        save_plot =save_plot)
 
     getGroupPlot(fixbins_df, 
         filter_clause = filter_clause,
@@ -412,7 +541,8 @@ getGroupPlots = function(
         x_end = x_end,
         mean_pp_duration= mean_pp_duration,
         delay_ms = delay_ms,
-        group_title = group_title)
+        group_title = group_title,
+        save_plot =save_plot)
 
     getGroupPlot(fixbins_df, 
         filter_clause = filter_clause,
@@ -423,7 +553,8 @@ getGroupPlots = function(
         x_end = x_end,
         mean_pp_duration= mean_pp_duration,
         delay_ms = delay_ms,
-        group_title = group_title)
+        group_title = group_title,
+        save_plot =save_plot)
 
     getGroupPlot(fixbins_df, 
         filter_clause = filter_clause,
@@ -434,7 +565,8 @@ getGroupPlots = function(
         x_end = x_end,
         mean_pp_duration= mean_pp_duration,
         delay_ms = delay_ms,
-        group_title = group_title)
+        group_title = group_title,
+        save_plot =save_plot)
 
 
     getGroupPlot(fixbins_df, 
@@ -447,7 +579,8 @@ getGroupPlots = function(
         x_end = x_end,
         mean_pp_duration= mean_pp_duration,
         delay_ms = delay_ms,
-        group_title = group_title)
+        group_title = group_title,
+        save_plot =save_plot)
 }
 
 getGroupPlot = function(
@@ -465,14 +598,15 @@ getGroupPlot = function(
     x_end,
     mean_pp_duration, # x position of vertical line to indicate mean PP duration
     delay_ms,
-    group_title = ''){
+    group_title = '',
+    save_plot){
 
 
     # Examplse of a dynamic subsetting
     #eval(parse(text="test = subset(subject_info, id=='pl00')"))
     if (!is.null(filter_clause)){
         eval( parse( text= paste0(
-            "fixbins_df_filtered = subset(fixbins_df, ",
+            "fixbins_df_filtered = subset(fixbins_df, !exclude_trial & ",
             filter_clause,
             ")"
         )))
@@ -554,8 +688,18 @@ getGroupPlot = function(
         }
 
     }
+
     options(repr.plot.width=8, repr.plot.height=4)
     print(p1)    
+    if (save_plot){
+        if (is.null(grouping_var)){
+            grouping_var = 'nullgroup'
+        }
+        fname = gsub(' ','', paste0('figures/', filter_clause, '_', grouping_var,
+            '_', facet_clause,'.pdf'))
+        print(fname)
+        ggsave(fname, width=10, height=5)
+    }
     #[ ] add back the count of the participants that are yieleded by filtering
 }
 
