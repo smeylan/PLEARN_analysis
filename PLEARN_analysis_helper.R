@@ -47,7 +47,7 @@ analyzeEyetrackingParticipant = function(result_dir, filename, audio_timings, pa
     fixreport_path = paste0(result_dir,filename)
     print(paste0('processing ', fixreport_path,'...'))
 
-	participant_name = gsub('.txt','',tail(strsplit(fixreport_path, '/')[[1]]))[2]
+    participant_name = gsub('.txt','',tail(strsplit(fixreport_path, '/')[[1]]))[2]
     
     # if the file is an excel file rather than a csv, read it in and write it out as a csv
     current_extension = strsplit(fixreport_path, '\\.')[[1]][-1]
@@ -110,7 +110,7 @@ analyzeEyetrackingParticipant = function(result_dir, filename, audio_timings, pa
     "practice"))
     fixbins$Nonset = fixbins$Time
     fixbins$participant_type = participant_type
-    fixbins$participant_name = participant_name
+    #fixbins$participant_name = participant_name #this causes problems because suvbject_info aalready has a participant_name
 
     
     # Exclusion logic: identify bad trials and subjects here; note that in fixbins
@@ -217,12 +217,18 @@ analyzeEyetrackingParticipant = function(result_dir, filename, audio_timings, pa
     	print(p3)
     }
     
+    #fixbins$id = participant_name
     fixbins$filename = filename
-	return(fixbins)
+    return(fixbins)
 
 } 
 
 test_participant_receptive_knowledge = function(fixbins, normalizeMethod = "none", verbose=F, start_analysis_window = 367, end_analysis_window= 2500, return_type="summaries") {
+    
+    if (return_type == 'trial_level' & normalizeMethod %in% c('preceding','yoked')){
+        stop('a trial_level return value can only be requested with the raw normalizeMethod')
+    }
+
     fixbins = subset(fixbins, !exclude_trial)
 
     fixbins$is_looking_at_target  = as.numeric(fixbins$CURRENT_FIX_INTEREST_AREA_LABEL == 'TARGET')
@@ -231,22 +237,22 @@ test_participant_receptive_knowledge = function(fixbins, normalizeMethod = "none
     fixbins$dummy = 1
     tz_after = subset(fixbins, Time > start_analysis_window & Time < end_analysis_window & practice == 'n')
     
-    ltt = aggregate(cbind(is_looking_at_target, is_looking_at_distractor) ~ expt_index + novelty + voicing + dummy + s_form + participant_type + target, tz_after, mean)
+    ltt = aggregate(cbind(is_looking_at_target, is_looking_at_distractor) ~ expt_index + novelty + voicing + animacystatus + dummy + s_form + participant_type + target + participant_type + target +participant_name  + expt_version, tz_after, mean)
     
     if (return_type == "trial_level"){
-        trial_level_data =  aggregate(cbind(is_looking_at_target, is_looking_at_distractor) ~ expt_index + novelty + voicing + animacystatus + s_form + participant_type + target +participant_name.x + expt_version, tz_after, mean) 
+        trial_level_data =  aggregate(cbind(is_looking_at_target, is_looking_at_distractor) ~ expt_index + novelty + voicing + animacystatus + dummy + s_form + participant_type + target + participant_type + target +participant_name  + expt_version, tz_after, mean) 
         return(trial_level_data)
     } 
     
 
-
-    
     if (normalizeMethod == 'preceding'){
-        colnames(ltt)[colnames(ltt)=="is_looking_at_target"] <- "is_looking_at_target_after"
+        nrow(ltt)        
+        colnames(ltt)[colnames(ltt)=="is_looking_at_target"] <- "is_looking_at_target_after"        
         tz_before = subset(fixbins, Time <= 367 & practice == 'n')
-        ltt_before = aggregate(is_looking_at_target ~ expt_index + novelty + voicing + participant_type + target + dummy, tz_before, mean)
+        ltt_before = aggregate(is_looking_at_target ~ expt_index + novelty + voicing + animacystatus + dummy + participant_type + target + s_form + expt_version
+            , tz_before, mean)
         colnames(ltt_before)[colnames(ltt_before)=="is_looking_at_target"] <- "is_looking_at_target_before"
-        ltt = merge(ltt, ltt_before)
+        ltt = merge(ltt, ltt_before)        
         ltt$is_looking_at_target = ltt$is_looking_at_target_after - ltt$is_looking_at_target_before
     }
     
@@ -258,7 +264,7 @@ test_participant_receptive_knowledge = function(fixbins, normalizeMethod = "none
 
 
         # ltd = looks to distractor, vs. ltt which is computed above. This is for each trial:
-        ltd = aggregate(is_looking_at_distractor ~ expt_index + novelty + voicing + dummy + participant_type + target + s_form, tz_after, mean)        
+        ltd = aggregate(is_looking_at_distractor ~ expt_index + novelty + voicing + animacystatus + dummy + s_form + participant_type + target + participant_type + target +participant_name  + expt_version, tz_after, mean)        
         
         #yoke_index = index of the trial where the distractor for this trial is presented as the target
         ltd$yoke_index = sapply(ltd$expt_index, function(x){
@@ -274,9 +280,14 @@ test_participant_receptive_knowledge = function(fixbins, normalizeMethod = "none
              by.y='yoke_index')
         
         #print(ltt)
-        if (return_type == 'summaries'){
+        if (return_type %in% c('summaries')){
             # correct is_looking_at_target with the score looking at the distractors
             ltt$is_looking_at_target = ltt$is_looking_at_target - ltt$prop_looks_to_item_when_distractor 
+        } else if (return_type %in% c('ltt')){
+            ltt$corrected_looks_to_target = ltt$is_looking_at_target - ltt$prop_looks_to_item_when_distractor 
+            yoked_results = subset(ltt,target == 's')
+            yoked_results$target = NULL
+            return(yoked_results)
         }
         # 1st term is the proportion of time looking at this item when it is the target; 
         # 2nd is the proportion of time looking at this item when it is the distractor
@@ -336,10 +347,10 @@ test_participant_receptive_knowledge = function(fixbins, normalizeMethod = "none
     rdf$voicing = NULL
     rdf$dummy = NULL
     rdf$normalizeMethod = normalizeMethod
-    rdf$participant_name = gsub('.xlsx', '', gsub('_fixations','',unique(fixbins$participant_name.x)))
+    rdf$participant_name = gsub('.xlsx', '', gsub('_fixations','',unique(fixbins$participant_name)))
     rdf$expt_version  = unique(fixbins$expt_version)
     if (return_type == "ltt"){
-        ltt$participant_name = gsub('.xlsx', '', gsub('_fixations','',unique(fixbins$participant_name.x)))
+        ltt$participant_name = gsub('.xlsx', '', gsub('_fixations','',unique(fixbins$participant_name)))
         return(ltt)
     } else if (return_type == "summaries") {
         return(rdf)    
@@ -501,10 +512,12 @@ getGroupPlots = function(
         filter_clause = filter_clause,
         facet_clause = '~ target',
         facet_type = 'wrap',
-        loessSpan, x_start, x_end,
+        loessSpan = loessSpan,
+        x_start = x_start,
+        x_end = x_end,
         mean_pp_duration= mean_pp_duration,
-        delay_ms,
-        group_title,
+        delay_ms = delay_ms,
+        group_title = group_title,
         save_plot =save_plot)
     
 
@@ -513,10 +526,12 @@ getGroupPlots = function(
         filter_clause = filter_clause,
         facet_clause = '~ target',
         facet_type = 'wrap',
-        loessSpan, x_start, x_end,
+        loessSpan = loessSpan, 
+        x_start = x_start,
+        x_end = x_end,
         mean_pp_duration= mean_pp_duration,
-        delay_ms,
-        group_title,
+        delay_ms = delay_ms,
+        group_title = group_title,
         save_plot =save_plot)
 
     getGroupPlot(fixbins_df, 
@@ -524,12 +539,12 @@ getGroupPlots = function(
         filter_clause = filter_clause,
         facet_clause = '~ target',
         facet_type = 'wrap',
-        loessSpan,
-        x_start,
-        x_end,
+        loessSpan = loessSpan,
+        x_start = x_start,
+        x_end = x_end,
         mean_pp_duration= mean_pp_duration,
-        delay_ms,
-        group_title,
+        delay_ms = delay_ms,
+        group_title = group_title,
         save_plot =save_plot)
 
     getGroupPlot(fixbins_df, 
@@ -585,11 +600,12 @@ getGroupPlots = function(
 
 getGroupPlot = function(
     ###
-    # Wrapper function for constrasting eyetracking plots
+    # Wrapper function for contrasting eyetracking plots
     ###
 
     fixbins_df,
     grouping_var = NULL,
+    linetype_var = NULL,
     filter_clause = NULL, # subset statement for what to include in this analysis
     facet_clause = NULL, # statement for how to facet
     facet_type = NULL, # wrap or grid?
@@ -599,7 +615,8 @@ getGroupPlot = function(
     mean_pp_duration, # x position of vertical line to indicate mean PP duration
     delay_ms,
     group_title = '',
-    save_plot){
+    save_plot,
+    plot_size = c(10,5)){
 
 
     # Examplse of a dynamic subsetting
@@ -623,6 +640,10 @@ getGroupPlot = function(
         agg_by = c(agg_by, grouping_var)
     } 
 
+    if (!is.null(linetype_var)){
+        agg_by = c(agg_by, linetype_var)
+    } 
+    
     if (!is.null(facet_clause)){
         # add anything that isn't a tilde from the facet clause to the aggregation equation
         print('facet clause:')
@@ -651,22 +672,38 @@ getGroupPlot = function(
     names(aggregated_sem)[names(aggregated_sem) == 'cfial_bin.2'] = 'cfial_high'    
 
     #initial plot
-    p1 = ggplot(aggregated_means)
+    p1 = ggplot(aggregated_means)    
 
     # SEMs get added first
-    if (!is.null(grouping_var)){
-     p1 = p1 + geom_errorbar( data=subset(aggregated_sem, mod(Time, 100) == 0), aes_string(x='Time', ymin='cfial_low', ymax='cfial_high', colour =grouping_var), alpha=.25)
+    sem_df = subset(aggregated_sem, mod(Time, 100) == 0)        
+    if (!is.null(linetype_var)){        
+        
+        # failing at the specification of the interaction and not later than that
+        sem_df$interaction_group = interaction(as.factor(sem_df[[grouping_var]]), as.factor(sem_df[[linetype_var]]))
+        p1 = p1 + geom_errorbar( data=sem_df, aes_string(x='Time', ymin='cfial_low', ymax='cfial_high', colour = 'interaction_group', 
+            group='interaction_group' ), alpha=.25)
     } else {
-        # do not pass grouping_var to aes as the color specification
-        p1 = p1 + geom_errorbar( data=subset(aggregated_sem, mod(Time, 100) == 0), aes_string(x='Time', ymin='cfial_low', ymax='cfial_high'), alpha=.25)
-    } 
-
+        if (!is.null(grouping_var)){
+        p1 = p1 + geom_errorbar( data=sem_df, aes_string(x='Time', ymin='cfial_low', ymax='cfial_high', colour =grouping_var), alpha=.25)
+        } else {
+            # do not pass grouping_var to aes as the color specification
+            p1 = p1 + geom_errorbar( data=sem_df, aes_string(x='Time', ymin='cfial_low', ymax='cfial_high'), alpha=.25)
+        } 
+    }
     # Means get addded 2nd
-    if (!is.null(grouping_var)){
-        p1 = p1 + geom_point(aes_string(x='Time', y = 'cfial_bin', colour=grouping_var), size=.5, pch=21)
-        p1 = p1 + geom_line(aes_string(x='Time', y = 'cfial_bin', colour=grouping_var, group= grouping_var), size=.5, pch=21)         
+    if (!is.null(linetype_var)){
+        agg_means_df = aggregated_means
+        agg_means_df$interaction_group = interaction(as.factor(agg_means_df[[grouping_var]]), as.factor(agg_means_df[[linetype_var]]))    
+        #p1 = p1 + geom_point(data=agg_means_df, aes_string(x='Time', y = 'cfial_bin', colour=grouping_var), size=.5, pch=21)
+        p1 = p1 + geom_line(data=agg_means_df, aes_string(x='Time', y = 'cfial_bin', colour='interaction_group', 
+            group= 'interaction_group'), size=.5, pch=21)         
     } else {
-        p1 = p1 + geom_point(aes_string(x='Time', y = 'cfial_bin'), size=.5, pch=21)         
+        if (!is.null(grouping_var)){
+            #p1 = p1 + geom_point(aes_string(x='Time', y = 'cfial_bin', colour=grouping_var), size=.5, pch=21)
+            p1 = p1 + geom_line(aes_string(x='Time', y = 'cfial_bin', colour=grouping_var, group= grouping_var), size=.5, pch=21)         
+        } else {
+            p1 = p1 + geom_point(aes_string(x='Time', y = 'cfial_bin'), size=.5, pch=21)         
+        }
     }   
 
     if (! is.null(mean_pp_duration)){
@@ -674,9 +711,12 @@ getGroupPlot = function(
     }
 
     # add the constants for all plots
-    p1 = p1 + coord_cartesian(ylim=c(0,1), xlim=c(x_start, x_end)) + geom_hline(yintercept = .5, linetype = 'dotted') + ylab('Proportion Fixations to Target') + xlab('Time in ms') + geom_vline(xintercept=0, colour='black') + ggtitle(
-        paste0(group_title, ": ", grouping_var, " (n = ", length(unique(participant_mean_df$filename)),")")) + theme_bw()  
+    p1 = p1 + coord_cartesian(ylim=c(0,1), xlim=c(x_start, x_end)) + geom_hline(yintercept = .5, linetype = 'dotted') + ylab('Proportion Fixations to Target') + xlab('Time in ms') + geom_vline(xintercept=0, colour='black')  + theme_bw()  
     
+    if (!is.null(group_title)){
+        p1 = p1 + ggtitle(paste0(group_title, ": ", grouping_var, " (n = ", length(unique(participant_mean_df$filename)),")"))
+    }
+
     if (!is.null(facet_clause)){
         # grouping step / pre-processing depends on the faceting
         # Adapt the code I wrote for ELSSP
@@ -689,7 +729,7 @@ getGroupPlot = function(
 
     }
 
-    options(repr.plot.width=8, repr.plot.height=4)
+    options(repr.plot.width=plot_size[1], repr.plot.height=plot_size[2])
     print(p1)    
     if (save_plot){
         if (is.null(grouping_var)){
@@ -698,7 +738,7 @@ getGroupPlot = function(
         fname = gsub(' ','', paste0('figures/', filter_clause, '_', grouping_var,
             '_', facet_clause,'.pdf'))
         print(fname)
-        ggsave(fname, width=10, height=5)
+        ggsave(fname, width=plot_size[1], height=plot_size[2])
     }
     #[ ] add back the count of the participants that are yieleded by filtering
 }
