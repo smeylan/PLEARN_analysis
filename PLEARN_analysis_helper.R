@@ -10,15 +10,15 @@ sem = function(x){
 }
 
 
-getAudioTimingsFromFile = function(path){
+getAudioTimingsFromFile = function(path, duration_onscreen_prior = 2500){
     audio_timings = data.frame(do.call('rbind', fromJSON(file = path)))
-    audio_timings$disambig_time_from_0 = as.numeric(audio_timings$disambig_time_from_0)
-    audio_timings$disambig_time = 2000+(1000*audio_timings$disambig_time_from_0)
+    #audio_timings$disambig_time_from_0 = as.numeric(audio_timings$disambig_time_from_0)
+    audio_timings$disambig_time = duration_onscreen_prior +(1000*(audio_timings$begin_disambig_region - audio_timings$start_time))    
     audio_timings$audiotarget = sapply(audio_timings$file, trimws)
     return(audio_timings)
 }
 
-getAudioTimingsFromGlob = function(glob){
+getAudioTimingsFromGlob = function(glob, duration_onscreen_prior = 2500){
     ### 
     # Load all of the audio timing data from the .cut JSON files used to slice the stimuli
     ###
@@ -30,8 +30,8 @@ getAudioTimingsFromGlob = function(glob){
 	for (name in names(audio_timings)){ 
 	    audio_timings[[name]] =unlist(audio_timings[[name]])
 	}
-	audio_timings$disambig_time = 2000+(1000*(audio_timings$begin_disambig_region - audio_timings$start_time))
-	#this is the duration of the clip in ms, + 2000	
+	audio_timings$disambig_time = duration_onscreen_prior +(1000*(audio_timings$begin_disambig_region - audio_timings$start_time))
+	#this is wrt the beginning of the objects onscreen 
 
 	audio_timings$audiotarget = audio_timings$filename
     audio_timings$pp_duration = audio_timings$stop_time - audio_timings$target_noun_end_time
@@ -92,6 +92,8 @@ analyzeEyetrackingParticipant = function(result_dir, filename, audio_timings, pa
         print('Correct number of trials in merging with audio timings')
     } 
 
+
+
     binSize = 20
 	fixbins = binifyFixations(gaze, binSize=binSize, keepCols=c(
     "CURRENT_FIX_START",
@@ -111,7 +113,6 @@ analyzeEyetrackingParticipant = function(result_dir, filename, audio_timings, pa
     fixbins$Nonset = fixbins$Time
     fixbins$participant_type = participant_type
     #fixbins$participant_name = participant_name #this causes problems because suvbject_info aalready has a participant_name
-
     
     # Exclusion logic: identify bad trials and subjects here; note that in fixbins
     
@@ -123,6 +124,7 @@ analyzeEyetrackingParticipant = function(result_dir, filename, audio_timings, pa
     looks_to_d_per_trial = aggregate(Time ~ expt_index  , 
                 subset(fixbins, CURRENT_FIX_INTEREST_AREA_LABEL == 'DISTRACTOR'), function(x){length(x)*binSize})
     names(looks_to_d_per_trial) = c('expt_index', 'looks_to_d')
+    print('checkpoint2')
     
     # drop trials looking at less than 1/3 of the window of interest
     looks_to_td_in_window = aggregate(Time ~ expt_index , 
@@ -136,7 +138,7 @@ analyzeEyetrackingParticipant = function(result_dir, filename, audio_timings, pa
     looks_to_td_per_trial$exclude_trial =  (looks_to_td_per_trial$looks_to_t == 0) |
                                            (looks_to_td_per_trial$looks_to_d == 0) |
                                            (looks_to_td_per_trial$looks_to_td < (1/3) *(4000 - 367))   
-    looks_to_td_per_trial$exclude_subject = F                                          
+    looks_to_td_per_trial$exclude_subject = F                                  
     
     # check if more than half of the trials were dropped for one of the above reasons
     if (mean(looks_to_td_per_trial$exclude_trial) > .5){
@@ -145,7 +147,6 @@ analyzeEyetrackingParticipant = function(result_dir, filename, audio_timings, pa
     }
     
     fixbins = merge(fixbins, looks_to_td_per_trial)
-
 
     if (length(unique(fixbins$TRIAL_INDEX)) < num_trials_raw_data){
         if (haltOnMissing){
@@ -156,7 +157,6 @@ analyzeEyetrackingParticipant = function(result_dir, filename, audio_timings, pa
     } else{
         print('Correct number of trials after binning procedure')
     }
-
 
     fixbins = augmentFixbinsWithFixationAtOnset(367, fixbins, label_colname = "CURRENT_FIX_INTEREST_AREA_LABEL", buffer_ms = 200)
 
@@ -483,16 +483,16 @@ getGroupPlots = function(
     # plotting params passed along to all graphs
     filter_clause=NULL,    
     loessSpan=.2,  
-    x_start = -2000, # span of the graph to show
-    x_end=3000,
+    x_start = -4000, # span of the graph to show
+    x_end=7000,
     mean_pp_duration=NULL, # x position of vertical line to indicate mean PP duration
     delay_ms=367,
     group_title = '',
     save_plot=F){
 	
-	fixbins_df_coded = subset(fixbins_df, CURRENT_FIX_INTEREST_AREA_LABEL %in% c(
-	'TARGET','DISTRACTOR')) #& Time < 3000
-    fixbins_df_coded$cfial_bin = as.numeric(fixbins_df_coded$CURRENT_FIX_INTEREST_AREA_LABEL == 'TARGET')
+	fixbins_df = subset(fixbins_df, CURRENT_FIX_INTEREST_AREA_LABEL %in% c(
+	'TARGET','DISTRACTOR') & !exclude_trial) #& Time < 3000
+    fixbins_df$cfial_bin = as.numeric(fixbins_df$CURRENT_FIX_INTEREST_AREA_LABEL == 'TARGET')
     # the grouping / faceting actually happens inside of the getGroupPlot function
 	
     getGroupPlot(fixbins_df, 
@@ -559,29 +559,29 @@ getGroupPlots = function(
         group_title = group_title,
         save_plot =save_plot)
 
-    getGroupPlot(fixbins_df, 
-        filter_clause = filter_clause,
-        facet_clause = '~ first3',
-        facet_type = 'wrap',
-        loessSpan = loessSpan,
-        x_start = x_start, 
-        x_end = x_end,
-        mean_pp_duration= mean_pp_duration,
-        delay_ms = delay_ms,
-        group_title = group_title,
-        save_plot =save_plot)
+    # getGroupPlot(fixbins_df, 
+    #     filter_clause = filter_clause,
+    #     facet_clause = '~ first3',
+    #     facet_type = 'wrap',
+    #     loessSpan = loessSpan,
+    #     x_start = x_start, 
+    #     x_end = x_end,
+    #     mean_pp_duration= mean_pp_duration,
+    #     delay_ms = delay_ms,
+    #     group_title = group_title,
+    #     save_plot =save_plot)
 
-    getGroupPlot(fixbins_df, 
-        filter_clause = filter_clause,
-        facet_clause = 'target ~ first3',
-        facet_type = 'grid',
-        loessSpan = loessSpan,
-        x_start = x_start, 
-        x_end = x_end,
-        mean_pp_duration= mean_pp_duration,
-        delay_ms = delay_ms,
-        group_title = group_title,
-        save_plot =save_plot)
+    # getGroupPlot(fixbins_df, 
+    #     filter_clause = filter_clause,
+    #     facet_clause = 'target ~ first3',
+    #     facet_type = 'grid',
+    #     loessSpan = loessSpan,
+    #     x_start = x_start, 
+    #     x_end = x_end,
+    #     mean_pp_duration= mean_pp_duration,
+    #     delay_ms = delay_ms,
+    #     group_title = group_title,
+    #     save_plot =save_plot)
 
 
     getGroupPlot(fixbins_df, 
@@ -791,6 +791,8 @@ getTrialRT = function(gaze_trials, delay_ms=367, label_colname='CURRENT_FIX_INTE
         if (is.na(diff)){
             time_to_last_nonna = NA
         } else {
+            print(diff)
+            print(buffer_ms)
             if (diff < buffer_ms){ 
                 time_to_last_nonna = diff
             }  else {
@@ -913,16 +915,22 @@ augmentTrialWithFixationAtOnset = function(delay_ms, trial_fixbins, label_colnam
             
             non_na_fixbins_before_disambig = trial_fixbins[(trial_fixbins$Nonset < delay_ms) & !is.na(trial_fixbins[[label_colname]]),]
 
-            non_na_fixbins_before_disambig = non_na_fixbins_before_disambig[order(non_na_fixbins_before_disambig$timeBin, decreasing=T),]
-
-            last_fixbin = non_na_fixbins_before_disambig[1,]        
-            diff = (delay_ms - (last_fixbin$Nonset + bin_duration_ms)) 
-            # current_fix_end will be smaller than delay_ms
-
-            if (diff < buffer_ms){ 
-                time_to_last_nonna = diff
-            }  else {
+            if (nrow(non_na_fixbins_before_disambig) == 0){
+                label_at_onset = NA
                 time_to_last_nonna = NA
+                track_loss_at_0 = T
+            } else {
+                non_na_fixbins_before_disambig = non_na_fixbins_before_disambig[order(non_na_fixbins_before_disambig$timeBin, decreasing=T),]
+
+                last_fixbin = non_na_fixbins_before_disambig[1,]        
+                diff = (delay_ms - (last_fixbin$Nonset + bin_duration_ms)) 
+                # current_fix_end will be smaller than delay_ms
+
+                if (diff < buffer_ms){ 
+                    time_to_last_nonna = diff
+                }  else {
+                    time_to_last_nonna = NA
+                }
             } 
         }
         
@@ -1019,6 +1027,306 @@ getPropTargetLooking = function(child_fixbins_coded,  x_end, subset_statement=NU
     return(prop_looking)
 }
     
+prepModelForDWPlot = function(lm){
+    if (class(summary(lm)) == 'brmssummary'){
+        # brms model, pull out the fixed effects
+        df = as.data.frame(fixef(lm))
+        df$term = rownames(df)        
+        df$group = 'fixed'
+        df$interaction = F 
+        df$sig = df$Q2.5> 0 | df$Q97.5 < 0
+        df$interaction[grep(':', df$term)] = T
+        return(df)
+        #return(subset(df, !interaction))
 
 
+    } else if (class(summary(lm)) == "summary.merMod") {
+        # copy the intercept to a newly named column that dwplot expects
+        df = tidy(lm) 
+        intercept = subset(df, term == '(Intercept)')
+        intercept$term = 'Intercept'
+        df = rbind(df, intercept)
+        return(df)
+    }
+}
 
+
+get_num_trials_raw_data = function(gaze, halt_on_missing){
+    num_trials_raw_data = length(unique(gaze$expt_index))
+    if (num_trials_raw_data < 32){
+        if (halt_on_missing){
+            stop('Missing trials in the original data')
+        } else {
+            print('Missing trials in the original data')             
+        }
+    } else {
+        print('Correct number of trials in the original data')
+    } 
+    return(num_trials_raw_data)
+}
+
+get_expt_index_from_frame_id = function(frame_id, order){
+    #Order 1... p1..p4 -> 1 - 4; 1-32 -> 5 36
+    #Order 2... p1..p4 -> 1 - 4; 1-32 -> 5 36        
+    if (order == 2){
+    	stop('Not implemented')
+    }
+    
+    if (length(grep('-p', frame_id))>0){
+        expt_index = as.numeric(gsub('p','',tail(strsplit(frame_id, '-')[[1]],1))) 
+    } else {
+        expt_index = as.numeric(tail(strsplit(frame_id, '-')[[1]],1)) + 4
+    } 
+    if (is.na(expt_index)){
+        print(frame_id)
+        stop(' problem recovering frame id')
+    }
+    return(expt_index)
+}
+
+get_frame_id_from_path = function(video_path){
+    frame_id = strsplit(tail(strsplit(video_path,'/')[[1]], 1), '_')[[1]][3]    
+    elements = strsplit(frame_id, '-')[[1]]
+    # drop the first index, which is only relevant to the ordering in LookIt
+    return(paste(tail(elements, length(elements) - 1), collapse='-'))  
+}
+
+get_num_trials_after_merge_audio = function(gaze, num_trials_raw_data){
+    num_trials_after_merge_audio = length(unique(gaze$expt_index))
+    if (num_trials_after_merge_audio < num_trials_raw_data){
+        if (haltOnMissing){
+            stop('Missing trials in merging with audio timings')
+        } else {
+            print('Missing trials in merging with audio timings')
+        }
+    } else {
+        print('Correct number of trials in merging with audio timings')
+    } 
+    return(num_trials_after_merge_audio)
+}
+
+get_fix_ia = function(label, TargetSide){
+    if (is.na(label) | is.na(TargetSide)){
+        return(NA)
+    }
+    if ((label == 'left' & TargetSide == 'r') | (label == 'right' &
+        TargetSide == 'l')){
+        return("TARGET")
+    } else if ((label == 'left' & TargetSide == 'l') | (label == 'right' &
+        TargetSide == 'r')){
+        return("DISTRACTOR")
+    } else {
+        return("OTHER")
+    }        
+}
+
+get_num_trials_after_filter = function(gaze, num_trials_after_merge_audio, halt_on_missing){
+    num_trials_after_filter = length(unique(gaze$trial_index))
+    if (num_trials_after_filter < num_trials_after_merge_audio){
+            if (halt_on_missing){
+                stop('Lost trials in filter procedure')
+            } else {
+                print('Lost trials in filter procedure')
+            }
+        } else{
+            print('Correct number of trials after filter procedure')
+        }
+    return(num_trials_after_filter)
+}
+
+
+filter_trials = function(gaze, binSize=50){
+    looks_to_t_per_trial = aggregate(Time ~ expt_index  , 
+                subset(gaze, CURRENT_FIX_INTEREST_AREA_LABEL == 'TARGET'), function(x){length(x)*binSize})
+    names(looks_to_t_per_trial) = c('expt_index', 'looks_to_t')
+    looks_to_d_per_trial = aggregate(Time ~ expt_index  , 
+                subset(gaze, CURRENT_FIX_INTEREST_AREA_LABEL == 'DISTRACTOR'), function(x){length(x)*binSize})
+    names(looks_to_d_per_trial) = c('expt_index', 'looks_to_d')
+    
+    # drop trials looking at less than 1/3 of the window of interest
+    looks_to_td_in_window = aggregate(Time ~ expt_index , 
+                subset(gaze, CURRENT_FIX_INTEREST_AREA_LABEL %in% c('TARGET','DISTRACTOR') & Time > 367 & Time < 4000),
+                    function(x){length(x)*binSize})
+    names(looks_to_td_in_window) = c('expt_index', 'looks_to_td')
+    looks_to_td_per_trial = merge(merge(looks_to_t_per_trial, looks_to_d_per_trial, all=T), looks_to_td_in_window, all=T)
+
+    looks_to_td_per_trial[is.na(looks_to_td_per_trial)] = 0
+
+    looks_to_td_per_trial$exclude_trial =  (looks_to_td_per_trial$looks_to_t == 0) |
+                                           (looks_to_td_per_trial$looks_to_d == 0) |
+                                           (looks_to_td_per_trial$looks_to_td < (1/3) *(4000 - 367))   
+    looks_to_td_per_trial$exclude_subject = F                                          
+    
+    # check if more than half of the trials were dropped for one of the above reasons
+    if (mean(looks_to_td_per_trial$exclude_trial) > .5){
+        looks_to_td_per_trial$exclude_subject = T
+        looks_to_td_per_trial$exclude_trial = T
+    }
+    gaze = merge(gaze, looks_to_td_per_trial)
+}
+
+get_num_trials_after_augmentation = function(gaze, num_trials_after_filter, halt_on_missing){
+    num_trials_after_augmentation = length(unique(gaze$TRIAL_INDEX))
+    if (num_trials_after_augmentation < num_trials_after_filter){
+        if (halt_on_missing){
+            stop('Lost trials in augmentation')
+        } else {
+            print('Lost trials in augmentation')
+        }
+    } else {
+        print('Correct number of trials after augmentation')
+    }
+    return(num_trials_after_augmentation)
+}
+
+get_test_or_practice = function(frame_id){
+    if (length(grep('test', frame_id))>0){
+        return('test')
+    } else if (length(grep('practice', frame_id))>0){
+        return('practice')
+    } else {
+        print(frame_id)
+        stop('Unknown if test or practice')
+    }
+}
+
+get_normal_or_calibration = function(frame_id){
+    if (length(grep('normal', frame_id))>0){
+        return('normal')
+    } else if (length(grep('calibration', frame_id))>0){
+        return('calibration')
+    } else {
+        print(frame_id)
+        stop('Unknown if normal or calibration')
+    }
+} 
+
+
+analyzeLookItParticipant = function(result_dir, session_id, item_properties, audio_timings, participant_type, order, plot=F, halt_on_missing=F, legacy=F, fps=20){   
+    #'''reads in the output of sample_gaze_codes_from_eaf' and matches with the audio timings
+    participant_name = session_id
+   
+    gazecode_path = Sys.glob(paste0(result_dir, '*', session_id, '.csv'))[1]
+    print(paste0('processing ', gazecode_path,'...'))
+    gaze = read.csv(gazecode_path, stringsAsFactors=F)
+    if (legacy){
+        # note that the legacy pipeline does not adjust for frame events 
+        gaze$frame_id = sapply(strsplit(gaze$filename, '_'), function(x){x[3]})
+        gaze$normalized_ms = round(gaze$normalized_ms /  fps) * fps        
+
+    }
+    gaze$order = order 
+    names(gaze)
+    print(paste(nrow(gaze), ' frame labels before filtering'))
+    gaze$test_or_practice = sapply(gaze$frame_id, get_test_or_practice)
+    gaze$normal_or_calibration = sapply(gaze$frame_id, get_normal_or_calibration)
+
+    gaze = subset(gaze, test_or_practice == 'test' & normal_or_calibration == 'normal')    
+    print(paste(nrow(gaze), ' after filtering'))
+    gaze$expt_index = sapply(gaze$frame_id, function(x){get_expt_index_from_frame_id(x, order=1)}) 
+    print('Assigned expt_index values')    
+
+    num_trials_raw_data = get_num_trials_raw_data(gaze, halt_on_missing)
+        num_trials_raw_data
+
+    gaze = merge(gaze, item_properties, by = c('expt_index', 'order'))
+    gaze = merge(gaze, audio_timings[,c('filename','disambig_time')],
+                    by.x = 'AudioTarget', by.y = 'filename')
+    # filename up to this point is the filename for the trial. Hereafter, overwrite it with the session_id (following code expects one filename per participant)
+    gaze$filename = session_id
+
+    num_trials_after_merge_audio = get_num_trials_after_merge_audio(gaze, num_trials_raw_data)
+
+    gaze$CURRENT_FIX_INTEREST_AREA_LABEL = mapply(get_fix_ia, gaze$label, gaze$TargetSide)
+    
+    ms_interval = (1/ fps) * 1000
+    gaze$Time = round(as.numeric(gaze$normalized_ms -  gaze$disambig_time) / ms_interval) * ms_interval    
+
+    #in gaze$normalized_ms, 0 is the start of the stimulus video
+    # disambig time reflects the following
+    # 2000 ms white
+    # 2000 ms onscreen
+    # ~1200 ms between when audio starts and disambiguating audio signal. This should all be accounted for in the audio_timings 
+
+    gaze = filter_trials(gaze) # note that the filter will omit practice trials
+    print('Missing after filtering')    
+
+    num_trials_after_filter = get_num_trials_after_filter(gaze, num_trials_after_merge_audio, halt_on_missing)
+    
+    gaze$TRIAL_INDEX = gaze$expt_index
+    gaze$timeBin = gaze$Time
+    gaze$Nonset = gaze$Time
+    gaze = augmentFixbinsWithFixationAtOnset(367, gaze, label_colname = "CURRENT_FIX_INTEREST_AREA_LABEL", buffer_ms = 200, bin_duration_ms = 50)
+    get_num_trials_after_augmentation(gaze, num_trials_after_filter, halt_on_missing)
+
+    gaze_coded = subset(gaze, CURRENT_FIX_INTEREST_AREA_LABEL %in% c('TARGET','DISTRACTOR', 'OTHER')
+        & Practice != 'y')
+    if (nrow(gaze_coded) == 0){
+        stop('No coded fixbins')
+    }
+    # enforce a temporal resolution -- this is 1 point per 100 ms
+    gaze_coded$TimeBin = round(gaze_coded$Time / 100) * 100
+    gaze_coded = subset(gaze_coded, TimeBin < 8000)
+
+    gaze_coded$cfial_bin = as.numeric(gaze_coded$CURRENT_FIX_INTEREST_AREA_LABEL == 'TARGET')
+    gaze_coded$animacystatus = gaze_coded$animacyStatus
+
+    gaze_coded_targetdistractor = subset(gaze_coded, CURRENT_FIX_INTEREST_AREA_LABEL %in% c('TARGET', 'DISTRACTOR'))
+    
+    no_conditioning = aggregate(cfial_bin ~ TimeBin + target, gaze_coded_targetdistractor, mean)
+    by_novelty = aggregate(cfial_bin ~ TimeBin + novelty + target, gaze_coded_targetdistractor, mean)
+    by_voicing = aggregate(cfial_bin ~ TimeBin + voicing + target, gaze_coded_targetdistractor, mean)
+    by_animacy = aggregate(cfial_bin ~ TimeBin + animacyStatus + target, gaze_coded_targetdistractor, mean)
+
+    if (plot){        
+
+        options(repr.plot.width=8, repr.plot.height=4)
+    
+        num_non_na_obs = aggregate(cfial_bin ~ TimeBin + target, gaze_coded, 
+        function(x){length(x[!is.na(x)])})
+        p0 = ggplot(num_non_na_obs) + geom_point(aes(x=TimeBin, y = cfial_bin)
+        ) + geom_smooth(aes(x=TimeBin, y = cfial_bin)
+        ) + geom_hline(yintercept = .5, linetype = 'dotted'
+        ) + ylab('Num of non-NA Looks') + xlab('Time in ms') + geom_vline(xintercept=0,
+        colour='black') + ggtitle(paste(participant_name, 'Non-NA Looks'))  + facet_wrap(~target)
+        print(p0)
+
+        p0 = ggplot(no_conditioning) + geom_point(aes(x=TimeBin, y = cfial_bin)
+        ) + geom_smooth(aes(x=TimeBin, y = cfial_bin)
+        ) + coord_cartesian(ylim=c(0,1)) + geom_hline(yintercept = .5, linetype = 'dotted'
+        ) + ylab('Proportion Fixations to Target') + xlab('Time in ms') + geom_vline(xintercept=0,
+        colour='black') + ggtitle(participant_name)  + facet_wrap(~target
+        ) + geom_vline(xintercept=367, color='green')    
+        print(p0)
+        ggsave('figures/propFix.pdf', width=10, height=5)
+
+
+        p1 = ggplot(by_novelty) + geom_point(aes(x=TimeBin, y = cfial_bin, colour=novelty)
+        ) + geom_smooth(aes(x=TimeBin, y = cfial_bin, colour=novelty)
+        ) + coord_cartesian(ylim=c(0,1)) + geom_hline(yintercept = .5, linetype = 'dotted'
+        ) + ylab('Proportion Fixations to Target') + xlab('Time in ms') + geom_vline(xintercept=0,
+        colour='black') + ggtitle(paste(participant_name, ': Novelty', sep='')
+        ) + facet_wrap(~target) + geom_vline(xintercept=367, color='green')
+        print(p1)
+
+        p2 = ggplot(by_voicing) + geom_point(aes(x=TimeBin, y = cfial_bin, colour=voicing)
+        ) + geom_smooth(aes(x=TimeBin, y = cfial_bin, colour=voicing)
+        ) + coord_cartesian(ylim=c(0,1)) + geom_hline(yintercept = .5, linetype = 'dotted'
+        ) + ylab('Proportion Fixations to Target') + xlab('Time in ms'
+        ) + xlab('Time in ms') + geom_vline(xintercept=0, colour='black') + ggtitle(paste(participant_name, 
+        ': Voicing', sep='')) + facet_wrap(~target) + geom_vline(xintercept=367, color='green')
+        print(p2)
+
+        p3 = ggplot(by_animacy) + geom_point(aes(x=TimeBin, y = cfial_bin, colour=animacyStatus)
+        ) + geom_smooth(aes(x=TimeBin, y = cfial_bin, colour=animacyStatus)
+        ) + coord_cartesian(ylim=c(0,1)) + geom_hline(yintercept = .5, linetype = 'dotted'
+        ) + ylab('Proportion Fixations to Target') + xlab('Time in ms') + geom_vline(xintercept=0, 
+        colour='black') + ggtitle(paste(participant_name, ': Animacy', sep='')
+        ) + facet_wrap(~target) + geom_vline(xintercept=367, color='green')
+        print(p3) 
+    }
+    
+    gaze_coded$session_id = session_id
+    #gaze_coded$filename = filename
+    return(gaze_coded)
+} 
