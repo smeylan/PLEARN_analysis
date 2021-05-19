@@ -92,7 +92,8 @@ analyzeEyetrackingParticipant = function(result_dir, filename, audio_timings, pa
         print('Correct number of trials in merging with audio timings')
     } 
 
-
+    print('Dims of gaze before binify')
+    print(dim(gaze))
 
     binSize = 20
 	fixbins = binifyFixations(gaze, binSize=binSize, keepCols=c(
@@ -110,6 +111,8 @@ analyzeEyetrackingParticipant = function(result_dir, filename, audio_timings, pa
     "animacystatus",
     "voicing",
     "practice"))
+    print('Finished binning fixations')
+
     fixbins$Nonset = fixbins$Time
     fixbins$participant_type = participant_type
     #fixbins$participant_name = participant_name #this causes problems because suvbject_info aalready has a participant_name
@@ -1091,10 +1094,10 @@ get_frame_id_from_path = function(video_path){
     return(paste(tail(elements, length(elements) - 1), collapse='-'))  
 }
 
-get_num_trials_after_merge_audio = function(gaze, num_trials_raw_data){
+get_num_trials_after_merge_audio = function(gaze, num_trials_raw_data, halt_on_missing){
     num_trials_after_merge_audio = length(unique(gaze$expt_index))
     if (num_trials_after_merge_audio < num_trials_raw_data){
-        if (haltOnMissing){
+        if (halt_on_missing){
             stop('Missing trials in merging with audio timings')
         } else {
             print('Missing trials in merging with audio timings')
@@ -1202,11 +1205,13 @@ get_normal_or_calibration = function(frame_id){
 } 
 
 
-analyzeLookItParticipant = function(result_dir, session_id, item_properties, audio_timings, participant_type, order, plot=F, halt_on_missing=F, legacy=F, fps=20){   
+analyzeLookItParticipant = function(result_dir, session_id, annotator_id="*", item_properties, audio_timings, participant_type, target_order, plot=F, halt_on_missing=T, legacy=F, fps=20){   
     #'''reads in the output of sample_gaze_codes_from_eaf' and matches with the audio timings
     participant_name = session_id
-   
-    gazecode_path = Sys.glob(paste0(result_dir, '*', session_id, '.csv'))[1]
+    search_term = paste0(result_dir, session_id,'/processed/', annotator_id, '_',session_id, '.csv')
+    print(search_term)
+    gazecode_path = Sys.glob(search_term)[1]
+    
     print(paste0('processing ', gazecode_path,'...'))
     gaze = read.csv(gazecode_path, stringsAsFactors=F)
     if (legacy){
@@ -1215,7 +1220,7 @@ analyzeLookItParticipant = function(result_dir, session_id, item_properties, aud
         gaze$normalized_ms = round(gaze$normalized_ms /  fps) * fps        
 
     }
-    gaze$order = order 
+    gaze$order = target_order 
     names(gaze)
     print(paste(nrow(gaze), ' frame labels before filtering'))
     gaze$test_or_practice = sapply(gaze$frame_id, get_test_or_practice)
@@ -1223,19 +1228,26 @@ analyzeLookItParticipant = function(result_dir, session_id, item_properties, aud
 
     gaze = subset(gaze, test_or_practice == 'test' & normal_or_calibration == 'normal')    
     print(paste(nrow(gaze), ' after filtering'))
-    gaze$expt_index = sapply(gaze$frame_id, function(x){get_expt_index_from_frame_id(x, order=1)}) 
+    gaze$expt_index = sapply(gaze$frame_id, function(x){get_expt_index_from_frame_id(x, order=target_order)}) 
     print('Assigned expt_index values')    
 
     num_trials_raw_data = get_num_trials_raw_data(gaze, halt_on_missing)
         num_trials_raw_data
 
-    gaze = merge(gaze, item_properties, by = c('expt_index', 'order'))
+    item_properties = subset(item_properties, order == target_order)
+    print('Number of items in item_properties:')
+    print(nrow(item_properties))    
+
+    print(paste('before merging with item properties', nrow(gaze)))
+    gaze = merge(gaze, item_properties, by.x = 'expt_index', by.y= 'expt_index')
+    print(paste('before merging with audio timings', nrow(gaze)))
     gaze = merge(gaze, audio_timings[,c('filename','disambig_time')],
                     by.x = 'AudioTarget', by.y = 'filename')
+    print(paste('after merging with audio timings', nrow(gaze)))
     # filename up to this point is the filename for the trial. Hereafter, overwrite it with the session_id (following code expects one filename per participant)
     gaze$filename = session_id
 
-    num_trials_after_merge_audio = get_num_trials_after_merge_audio(gaze, num_trials_raw_data)
+    num_trials_after_merge_audio = get_num_trials_after_merge_audio(gaze, num_trials_raw_data, halt_on_missing)
 
     gaze$CURRENT_FIX_INTEREST_AREA_LABEL = mapply(get_fix_ia, gaze$label, gaze$TargetSide)
     
@@ -1266,7 +1278,7 @@ analyzeLookItParticipant = function(result_dir, session_id, item_properties, aud
     }
     # enforce a temporal resolution -- this is 1 point per 100 ms
     gaze_coded$TimeBin = round(gaze_coded$Time / 100) * 100
-    gaze_coded = subset(gaze_coded, TimeBin < 8000)
+    gaze_coded = subset(gaze_coded, TimeBin < 20000)
 
     gaze_coded$cfial_bin = as.numeric(gaze_coded$CURRENT_FIX_INTEREST_AREA_LABEL == 'TARGET')
     gaze_coded$animacystatus = gaze_coded$animacyStatus
@@ -1284,6 +1296,9 @@ analyzeLookItParticipant = function(result_dir, session_id, item_properties, aud
     
         num_non_na_obs = aggregate(cfial_bin ~ TimeBin + target, gaze_coded, 
         function(x){length(x[!is.na(x)])})
+
+        #write.csv(num_non_na_obs, paste0('csv/1e8_nonnunnaobs.csv'))
+
         p0 = ggplot(num_non_na_obs) + geom_point(aes(x=TimeBin, y = cfial_bin)
         ) + geom_smooth(aes(x=TimeBin, y = cfial_bin)
         ) + geom_hline(yintercept = .5, linetype = 'dotted'
