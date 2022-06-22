@@ -1,83 +1,120 @@
-﻿id,include_eyetracking,include_storybook,filename,age_in_days,gender,type,expt_version,comment
-plsm,1,,smflip3_fixreport.txt,,M,adult,scene,eyetracking only (adult)
-pl00,1,0,pl00_fixations.txt,769,F,child,scene,Fussiness; Receptive but not productive task
-pl01,1,1,pl01_fixations.txt,788,F,child,scene,No Looxie recording
-pl03,1,1,pl03_fixations.txt,810,F,child,scene,
-pl04,0,1,,858,F,child,scene,Fussiness; Production task but no receptive task
-pl05,0,1,,862,F,child,scene,Fussiness; Production task but no receptive task
-pl06,1,,pl06_fixations.txt,,,adult,scene,eyetracking only (adult)
-pl07,1,,pl07_fixations.txt,,,adult,scene,eyetracking only (adult)
-pl08,1,,pl08_fixations.txt,,,adult,scene,eyetracking only (adult)
-pl09,1,1,pl09_fixations.txt,796,F,child,scene,
-pl10,1,1,pl10_fixations.txt,897,M,child,scene,
-adultpl12,1,,adultpl12_fixations.txt,,,adult,scene,
-adultpl13,1,,adultpl13_fixations.txt,,,adult,scene,
-adultpl14,1,,adultpl14_fixations.txt,,,adult,scene,
-adultpl15,1,,adultpl15_fixations.txt,,,adult,scene,
-adultpl16,1,,adultpl16_fixations.txt,,,adult,scene,
-pl11,1,1,pl11_fixations.txt,792,M,child,scene,
-pl13,1,1,pl13_fixations.xlsx,1450,M,child,scene,
-pl14,1,1,pl14_fixations.xlsx,1057,M,child,scene,No Looxie recording
-pl15,1,1,pl15_fixations.xlsx,876,F,child,scene,
-pl16,1,1,pl16_fixations.xlsx,1049,M,child,scene,
-pl17,0,1,pl17_fixations.xlsx,926,F,child,scene,Fussiness; Production task but no receptive task
-pl18,1,1,pl18_fixations.xlsx,1034,F,child,scene,some missing trials in production task b/c child skipped ahead
-pl19,1,1,pl19_fixations.xlsx,947,M,child,scene,
-pl20,1,1,pl20_fixations.xlsx,1008,F,child,scene,
-pl21,0,1,pl21_fixations.xlsx,1100,F,child,redblue,Fussiness; production task but no receptive task
-pl22,1,1,pl22_fixations.xlsx,1408,M,child,scene,
-pl23,0,1,pl23_fixations.xlsx,850,M,child,scene,Squirminess; Production task but no receptive task
-pl24,1,1,pl24_fixations.xlsx,1091,M,child,scene,
-pl25,1,1,pl25_fixations.xlsx,1091,M,child,scene,
-pl27,1,1,pl27_fixations.xlsx,1107,F,child,scene,
-pl28,1,1,pl28_fixations.xlsx,951,F,child,scene,
-pl29,1,1,pl29_fixations.xlsx,931,F,child,scene,
-pl30,1,1,pl30_fixations.xlsx,931,M,child,redblue,first redblue
-pl31,1,1,pl31_fixations.xlsx,740,F,child,redblue,
-pl33,1,1,pl33_fixations.xlsx,725,M,child,redblue,partial Looxcie video
-pl35,0,1,,944,F,child,redblue,fussiness; production task but no receptive task
-pl36,1,1,pl36_fixations.xlsx,1079,F,child,redblue,
-pl37,1,1,pl37_fixations.xlsx,1086,M,child,redblue,
-pl38,1,0,pl38_fixations.xlsx,747,M,child,redblue,fussiness in production
-pl39,1,1,pl39_fixations.xlsx,740,F,child,redblue,
-pl40,0,1,pl40_fixations.xlsx,725,M,child,redblue,fussiness; Production task but no receptive task
-pl41,1,1,pl41_fixations.xlsx,866,F,child,redblue,
-pl42,1,1,pl42_fixations.xlsx,1026,M,child,redblue,
-pl43,1,1,pl43_fixations.xlsx,1008,F,child,redblue,
-pl44,0,1,pl44_fixations.xlsx,,F,child,redblue,eyetracker problem
-pl45,1,1,pl45_fixations.xlsx,933,F,child,redblue,
-plad01,1,,adultpl01_fixations.xlsx,,,adult,redblue,
-plad02,1,,adultpl02_fixations.xlsx,,,adult,redblue,
-plad03,1,,adultpl03_fixations.xlsx,,,adult,redblue,
-plad04,1,,adultpl04_fixations.xlsx,,,adult,redblue,
-plad05,1,,adultpl05_fixations.xlsx,,,adult,redblue,
-plad06,1,,adultpl06_fixations.xlsx,,,adult,redblue,
-plad07,1,,adultpl07_fixations.xlsx,,,adult,redblue,
-plad08,1,,adultpl08_fixations.xlsx,,,adult,redblue,
-plad09,1,,adultpl09_fixations.xlsx,,,adult,redblue,
-plad10,1,,adultpl10_fixations.xlsx,,,adult,redblue,
-plad11,1,,adultpl11_fixations.xlsx,,,adult,redblue,
-plad12,1,,adultpl12_fixations.xlsx,,,adult,redblue,
-plad13,1,,adultpl13_fixations.xlsx,,,adult,redblue,
-plad14,1,,adultpl14_fixations.xlsx,,,adult,redblue,
-plad15,1,,adultpl15_fixations.xlsx,,,adult,redblue,
-pl46,1,1,pl46_fixations.xlsx,1093,F,child,redblue,
-pl47,1,1,pl47_fixations.xlsx,1093,M,child,redblue,
-pl48,1,1,pl48_fixations.xlsx,1019,F,child,redblue,
-pl49,1,1,pl49_fixations.xlsx,792,M,child,redblue,
-pl50,1,1,pl50_fixations.xlsx,988,F,child,redblue,
-pl51,1,1,pl51_fixations.xlsx,917,M,child,redblue,
-pl52,1,1,pl52_fixations.xlsx,774,F,child,redblue,
-pl53,0,0,pl53_fixations.xlsx,836,FIX,child,redblue,eyetracker problem; fussiness in production
-pl54,0,1,pl54_fixations.xlsx,976,F,child,redblue,eyetracker problem
-pl55,1,1,pl55_fixations.xlsx,932,M,child,redblue,
-pl57,1,1,pl57_fixations.xlsx,973,F,child,redblue,
-pl58,0,0,,909,F,child,agreement,piloted agreement fussiness in eyetracking; no production test
-pl59,1,1,pl59_fixations.xlsx,1009,M,child,redblue,
-pl61,0,1,pl61_fixations.xlsx,728,M,child,redblue,Squirminess; Production task but no receptive task
-pl62,0,1,pl62_fixations.xlsx,1038,M,child,redblue,eyetracking problem
-pl63,1,0,pl63_fixations.xlsx,969,M,child,scene,too quiet in the production task; increased the gain but hard to hear
-pl64,1,1,pl64_fixations.xlsx,759,F,child,scene,
-pl66,1,1,pl66_fixations.xlsx,954,M,child,redblue,
-pl56,0,0,pl56_fixations.xlsx,,FIX,child,scene,fussiness in both tasks
-pl67,1,1,pl67_fixations.xlsx,777,F,child,scene,
+﻿id,include_eyetracking,include_storybook,filename,age_in_days,gender,type,expt_version,group,order,comment
+plsm,1,,smflip3_fixreport.txt,,M,adult,scene,,,eyetracking only (adult)
+pl00,1,0,pl00_fixations.txt,769,F,child,scene,,,Fussiness; Receptive but not productive task
+pl01,1,1,pl01_fixations.txt,788,F,child,scene,,,No Looxie recording
+pl03,1,1,pl03_fixations.txt,810,F,child,scene,,,
+pl04,0,1,,858,F,child,scene,,,Fussiness; Production task but no receptive task
+pl05,0,1,,862,F,child,scene,,,Fussiness; Production task but no receptive task
+pl06,1,,pl06_fixations.txt,,,adult,scene,,,eyetracking only (adult)
+pl07,1,,pl07_fixations.txt,,,adult,scene,,,eyetracking only (adult)
+pl08,1,,pl08_fixations.txt,,,adult,scene,,,eyetracking only (adult)
+pl09,1,1,pl09_fixations.txt,796,F,child,scene,,,
+pl10,1,1,pl10_fixations.txt,897,M,child,scene,,,
+adultpl12,1,,adultpl12_fixations.txt,,,adult,scene,,,
+adultpl13,1,,adultpl13_fixations.txt,,,adult,scene,,,
+adultpl14,1,,adultpl14_fixations.txt,,,adult,scene,,,
+adultpl15,1,,adultpl15_fixations.txt,,,adult,scene,,,
+adultpl16,1,,adultpl16_fixations.txt,,,adult,scene,,,
+pl11,1,1,pl11_fixations.txt,792,M,child,scene,,,
+pl13,1,1,pl13_fixations.xlsx,1450,M,child,scene,,,
+pl14,1,1,pl14_fixations.xlsx,1057,M,child,scene,,,No Looxie recording
+pl15,1,1,pl15_fixations.xlsx,876,F,child,scene,,,
+pl16,1,1,pl16_fixations.xlsx,1049,M,child,scene,,,
+pl17,0,1,pl17_fixations.xlsx,926,F,child,scene,,,Fussiness; Production task but no receptive task
+pl18,1,1,pl18_fixations.xlsx,1034,F,child,scene,,,some missing trials in production task b/c child skipped ahead
+pl19,1,1,pl19_fixations.xlsx,947,M,child,scene,,,
+pl20,1,1,pl20_fixations.xlsx,1008,F,child,scene,,,
+pl21,0,1,pl21_fixations.xlsx,1100,F,child,redblue,,,Fussiness; production task but no receptive task
+pl22,1,1,pl22_fixations.xlsx,1408,M,child,scene,,,
+pl23,0,1,pl23_fixations.xlsx,850,M,child,scene,,,Squirminess; Production task but no receptive task
+pl24,1,1,pl24_fixations.xlsx,1091,M,child,scene,,,
+pl25,1,1,pl25_fixations.xlsx,1091,M,child,scene,,,
+pl27,1,1,pl27_fixations.xlsx,1107,F,child,scene,,,
+pl28,1,1,pl28_fixations.xlsx,951,F,child,scene,,,
+pl29,1,1,pl29_fixations.xlsx,931,F,child,scene,,,
+pl30,1,1,pl30_fixations.xlsx,931,M,child,redblue,,,first redblue
+pl31,1,1,pl31_fixations.xlsx,740,F,child,redblue,,,
+pl33,1,1,pl33_fixations.xlsx,725,M,child,redblue,,,partial Looxcie video
+pl35,0,1,,944,F,child,redblue,,,fussiness; production task but no receptive task
+pl36,1,1,pl36_fixations.xlsx,1079,F,child,redblue,,,
+pl37,1,1,pl37_fixations.xlsx,1086,M,child,redblue,,,
+pl38,1,0,pl38_fixations.xlsx,747,M,child,redblue,,,fussiness in production
+pl39,1,1,pl39_fixations.xlsx,740,F,child,redblue,,,
+pl40,0,1,pl40_fixations.xlsx,725,M,child,redblue,,,fussiness; Production task but no receptive task
+pl41,1,1,pl41_fixations.xlsx,866,F,child,redblue,,,
+pl42,1,1,pl42_fixations.xlsx,1026,M,child,redblue,,,
+pl43,1,1,pl43_fixations.xlsx,1008,F,child,redblue,,,
+pl44,0,1,pl44_fixations.xlsx,,F,child,redblue,,,eyetracker problem
+pl45,1,1,pl45_fixations.xlsx,933,F,child,redblue,,,
+plad01,1,,adultpl01_fixations.xlsx,,,adult,redblue,,,
+plad02,1,,adultpl02_fixations.xlsx,,,adult,redblue,,,
+plad03,1,,adultpl03_fixations.xlsx,,,adult,redblue,,,
+plad04,1,,adultpl04_fixations.xlsx,,,adult,redblue,,,
+plad05,1,,adultpl05_fixations.xlsx,,,adult,redblue,,,
+plad06,1,,adultpl06_fixations.xlsx,,,adult,redblue,,,
+plad07,1,,adultpl07_fixations.xlsx,,,adult,redblue,,,
+plad08,1,,adultpl08_fixations.xlsx,,,adult,redblue,,,
+plad09,1,,adultpl09_fixations.xlsx,,,adult,redblue,,,
+plad10,1,,adultpl10_fixations.xlsx,,,adult,redblue,,,
+plad11,1,,adultpl11_fixations.xlsx,,,adult,redblue,,,
+plad12,1,,adultpl12_fixations.xlsx,,,adult,redblue,,,
+plad13,1,,adultpl13_fixations.xlsx,,,adult,redblue,,,
+plad14,1,,adultpl14_fixations.xlsx,,,adult,redblue,,,
+plad15,1,,adultpl15_fixations.xlsx,,,adult,redblue,,,
+pl46,1,1,pl46_fixations.xlsx,1093,F,child,redblue,,,
+pl47,1,1,pl47_fixations.xlsx,1093,M,child,redblue,,,
+pl48,1,1,pl48_fixations.xlsx,1019,F,child,redblue,,,
+pl49,1,1,pl49_fixations.xlsx,792,M,child,redblue,,,
+pl50,1,1,pl50_fixations.xlsx,988,F,child,redblue,,,
+pl51,1,1,pl51_fixations.xlsx,917,M,child,redblue,,,
+pl52,1,1,pl52_fixations.xlsx,774,F,child,redblue,,,
+pl53,0,0,pl53_fixations.xlsx,836,FIX,child,redblue,,,eyetracker problem; fussiness in production
+pl54,0,1,pl54_fixations.xlsx,976,F,child,redblue,,,eyetracker problem
+pl55,1,1,pl55_fixations.xlsx,932,M,child,redblue,,,
+pl57,1,1,pl57_fixations.xlsx,973,F,child,redblue,,,
+pl58,0,0,,909,F,child,agreement,,,piloted agreement fussiness in eyetracking; no production test
+pl59,1,1,pl59_fixations.xlsx,1009,M,child,redblue,,,
+pl61,0,1,pl61_fixations.xlsx,728,M,child,redblue,,,Squirminess; Production task but no receptive task
+pl62,0,1,pl62_fixations.xlsx,1038,M,child,redblue,,,eyetracking problem
+pl63,1,0,pl63_fixations.xlsx,969,M,child,scene,,,too quiet in the production task; increased the gain but hard to hear
+pl64,1,1,pl64_fixations.xlsx,759,F,child,scene,,,
+pl66,1,1,pl66_fixations.xlsx,954,M,child,redblue,,,
+pl56,0,0,pl56_fixations.xlsx,976,F,child,scene,,,fussiness in both tasks
+pl67,1,1,pl67_fixations.xlsx,777,F,child,scene,,,
+pl68,1,1,pl68_fixations.txt,1044,M,child,scene,,,
+pl69,1,1,pl69_fixations.txt,915,F,child,scene,,,
+pl70,1,1,pl70_fixations.txt,828,M,child,scene,,,
+pl71,1,1,pl71_fixations.txt,1084,M,child,scene,,,
+pl72,0,1,pl72_fixations.txt,798,F,child,scene,,,
+pl73,1,1,pl73_fixations.txt,821,M,child,scene,,,
+pl74,1,1,pl74_fixations.txt,995,M,child,scene,,,
+pl75,1,1,pl75_fixations.txt,914,M,child,scene,,,
+pl76,1,1,pl76_fixations.txt,1006,M,child,scene,,,
+pl77,1,1,pl77_fixations.txt,888,M,child,scene,,,
+pl79,1,1,pl79_fixations.txt,834,M,child,agreement,1,1,
+pl81,1,1,pl81_fixations.txt,782,F,child,agreement,1,2,
+pl82,1,1,pl82_fixations.txt,796,M,child,agreement,1,2,
+pl83,1,1,pl83_fixations.txt,756,F,child,agreement,1,1,
+pl84,1,1,pl84_fixations.txt,797,F,child,agreement,1,2,
+pl85,1,1,pl85_fixations.txt,748,F,child,agreement,1,1,
+pl86,1,1,pl86_fixations.txt,978,F,child,agreement,2,2,
+pl87,1,1,pl87_fixations.txt,917,M,child,agreement,2,2,
+pl88,1,1,pl88_fixations.txt,874,F,child,agreement,1,1,
+pl89,1,1,pl89_fixations.txt,868,M,child,agreement,2,2,
+pl90,1,1,pl90_fixations.txt,846,M,child,agreement,1,2,
+pl91,1,1,pl91_fixations.txt,848,F,child,agreement,1,1,
+pl92,1,1,pl92_fixations.txt,915,F,child,agreement,2,2,
+pl93,1,1,pl93_fixations.txt,745,F,child,agreement,1,1,
+pl94,1,1,pl94_fixations.txt,904,F,child,agreement,2,2,
+pl95,1,1,pl95_fixations.txt,831,F,child,agreement,1,1,
+pl96,1,1,pl96_fixations.txt,1050,F,child,agreement,3,2,
+pl97,1,1,pl97_fixations.txt,818,F,child,agreement,1,1,
+pl98,1,1,pl98_fixations.txt,905,M,child,agreement,2,2,
+pl99,1,1,pl99_fixations.txt,799,F,child,agreement,1,1,
+pl100,1,1,pl100_fixations.txt,878,M,child,agreement,2,1,
+pl101,1,1,pl101_fixations.txt,826,F,child,agreement,1,1,
+pl103,1,1,pl103_fixations.txt,929,F,child,agreement,1,2,
+pl104,1,1,pl104_fixations.txt,1100,F,child,agreement,3,1,
+pl106,1,1,pl106_fixations.txt,759,M,child,agreement,1,1,
+pl107,1,1,pl107_fixations.txt,992,F,child,agreement,3,2,
+,,,,,,,,,,

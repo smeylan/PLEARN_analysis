@@ -39,10 +39,16 @@ getAudioTimingsFromGlob = function(glob, duration_onscreen_prior = 2500){
 }
 
 
-analyzeEyetrackingParticipant = function(result_dir, filename, audio_timings, participant_type, plot=F, haltOnMissing=F){	
+analyzeEyetrackingParticipant = function(result_dir, participant, audio_timings, plot=F, haltOnMissing=F){	
     ### 
     # Process a single eyetracking participant (study-specific wrapper for blabr::fixations_report)
     ###
+
+    filename = participant$filename
+    participant_type = participant$type
+    expt_version = participant$expt_version
+
+
 
     fixreport_path = paste0(result_dir,filename)
     print(paste0('processing ', fixreport_path,'...'))
@@ -113,8 +119,15 @@ analyzeEyetrackingParticipant = function(result_dir, filename, audio_timings, pa
     "practice"))
     print('Finished binning fixations')
 
+
     fixbins$Nonset = fixbins$Time
-    fixbins$participant_type = participant_type
+    fixbins$type = participant_type
+    fixbins$expt_version = expt_version
+
+    print(names(fixbins))
+    print(fixbins[1,])
+    print(unique(fixbins$CURRENT_FIX_INTEREST_AREA_LABEL))
+
     #fixbins$participant_name = participant_name #this causes problems because suvbject_info aalready has a participant_name
     
     # Exclusion logic: identify bad trials and subjects here; note that in fixbins
@@ -175,7 +188,7 @@ analyzeEyetrackingParticipant = function(result_dir, filename, audio_timings, pa
 
     
     fixbins_coded = subset(fixbins, CURRENT_FIX_INTEREST_AREA_LABEL %in% c('TARGET','DISTRACTOR')
-    	& practice != '')
+    	& practice == 'n')
     if (nrow(fixbins_coded) == 0){
     	stop('No coded fixbins')
     }
@@ -226,24 +239,31 @@ analyzeEyetrackingParticipant = function(result_dir, filename, audio_timings, pa
 
 } 
 
-test_participant_receptive_knowledge = function(fixbins, normalizeMethod = "none", verbose=F, start_analysis_window = 367, end_analysis_window= 2500, return_type="summaries") {
+test_participant_receptive_knowledge = function(fixbins, normalizeMethod = "none", verbose=F, start_analysis_window = 367, end_analysis_window= 4000, return_type="summaries") {
     
     if (return_type == 'trial_level' & normalizeMethod %in% c('preceding','yoked')){
         stop('a trial_level return value can only be requested with the raw normalizeMethod')
-    }
+    }    
 
-    fixbins = subset(fixbins, !exclude_trial)
+    #print('fixbins # rows')
+    #print(nrow(fixbins))
 
     fixbins$is_looking_at_target  = as.numeric(fixbins$CURRENT_FIX_INTEREST_AREA_LABEL == 'TARGET')
     fixbins$is_looking_at_distractor  = as.numeric(fixbins$CURRENT_FIX_INTEREST_AREA_LABEL == 'DISTRACTOR')
-    fixbins = subset(fixbins, CURRENT_FIX_INTEREST_AREA_LABEL %in% c('TARGET','DISTRACTOR'))
-    fixbins$dummy = 1
+    fixbins = subset(fixbins, CURRENT_FIX_INTEREST_AREA_LABEL %in% c('TARGET','DISTRACTOR'))    
     tz_after = subset(fixbins, Time > start_analysis_window & Time < end_analysis_window & practice == 'n')
+
+    if (nrow(tz_after) == 0){
+        return(NULL)
+    }
     
-    ltt = aggregate(cbind(is_looking_at_target, is_looking_at_distractor) ~ expt_index + novelty + voicing + animacystatus + dummy + s_form + participant_type + target + participant_type + target +participant_name  + expt_version, tz_after, mean)
+
+    # ltt = looks to target, here in tz_after
+    ltt = aggregate(cbind(is_looking_at_target, is_looking_at_distractor) ~ expt_index + novelty + voicing + animacystatus  + s_form + type + target +participant_name  + expt_version, tz_after, mean)
     
+
     if (return_type == "trial_level"){
-        trial_level_data =  aggregate(cbind(is_looking_at_target, is_looking_at_distractor) ~ expt_index + novelty + voicing + animacystatus + dummy + s_form + participant_type + target + participant_type + target +participant_name  + expt_version, tz_after, mean) 
+        trial_level_data =  aggregate(cbind(is_looking_at_target, is_looking_at_distractor) ~ expt_index + novelty + voicing + animacystatus  + s_form + type + target +  +participant_name  + expt_version, tz_after, mean) 
         return(trial_level_data)
     } 
     
@@ -252,8 +272,8 @@ test_participant_receptive_knowledge = function(fixbins, normalizeMethod = "none
         nrow(ltt)        
         colnames(ltt)[colnames(ltt)=="is_looking_at_target"] <- "is_looking_at_target_after"        
         tz_before = subset(fixbins, Time <= 367 & practice == 'n')
-        ltt_before = aggregate(is_looking_at_target ~ expt_index + novelty + voicing + animacystatus + dummy + participant_type + target + s_form + expt_version
-            , tz_before, mean)
+        #ltt_before: proportion of looks to target before disambiguation
+        ltt_before = aggregate(is_looking_at_target ~ expt_index + novelty + voicing + animacystatus + type + target + s_form + expt_version, tz_before, mean)
         colnames(ltt_before)[colnames(ltt_before)=="is_looking_at_target"] <- "is_looking_at_target_before"
         ltt = merge(ltt, ltt_before)        
         ltt$is_looking_at_target = ltt$is_looking_at_target_after - ltt$is_looking_at_target_before
@@ -267,7 +287,7 @@ test_participant_receptive_knowledge = function(fixbins, normalizeMethod = "none
 
 
         # ltd = looks to distractor, vs. ltt which is computed above. This is for each trial:
-        ltd = aggregate(is_looking_at_distractor ~ expt_index + novelty + voicing + animacystatus + dummy + s_form + participant_type + target + participant_type + target +participant_name  + expt_version, tz_after, mean)        
+        ltd = aggregate(is_looking_at_distractor ~ expt_index + novelty + voicing + animacystatus + s_form + type + target  +participant_name  + expt_version, tz_after, mean)        
         
         #yoke_index = index of the trial where the distractor for this trial is presented as the target
         ltd$yoke_index = sapply(ltd$expt_index, function(x){
@@ -282,6 +302,10 @@ test_participant_receptive_knowledge = function(fixbins, normalizeMethod = "none
         ltt = merge(ltt, for_merging, by.x='expt_index',
              by.y='yoke_index')
         
+        if (nrow(ltt) == 0){
+            return(NULL)
+        }
+
         #print(ltt)
         if (return_type %in% c('summaries')){
             # correct is_looking_at_target with the score looking at the distractors
@@ -298,19 +322,19 @@ test_participant_receptive_knowledge = function(fixbins, normalizeMethod = "none
     }
     
 	# aggregate 
-	means_4 = aggregate(is_looking_at_target ~ novelty + voicing + participant_type, ltt, mean)
+	means_4 = aggregate(is_looking_at_target ~ novelty + voicing +  type, ltt, mean)
     means_4$contrast_type = '4-way'
 	names(means_4)[names(means_4) == 'is_looking_at_target'] = 'prop_looks_to_target'
 
-	means_2 = aggregate(is_looking_at_target ~ novelty + participant_type, ltt, mean)
+	means_2 = aggregate(is_looking_at_target ~ novelty +  type, ltt, mean)
     means_2$contrast_type = '2-way'
 	names(means_2)[names(means_2) == 'is_looking_at_target'] = 'prop_looks_to_target'	
 
-	means_2v = aggregate(is_looking_at_target ~ voicing + participant_type, ltt, mean)
+	means_2v = aggregate(is_looking_at_target ~ voicing +  type, ltt, mean)
     means_2v$contrast_type = '2-way'
 	names(means_2v)[names(means_2v) == 'is_looking_at_target'] = 'prop_looks_to_target'	
 
-	means_1 = aggregate(is_looking_at_target ~ dummy +participant_type, ltt, mean)
+	means_1 = aggregate(is_looking_at_target ~   type, ltt, mean)
     means_1$contrast_type = '1-way'
 	names(means_1)[names(means_1) == 'is_looking_at_target'] = 'prop_looks_to_target'	
 
@@ -321,19 +345,19 @@ test_participant_receptive_knowledge = function(fixbins, normalizeMethod = "none
 
     # tests on thresholded scores
 
-    contrasts_4 = aggregate(thresholded ~ novelty + voicing + participant_type, ltt, test_bern_vector)
+    contrasts_4 = aggregate(thresholded ~ novelty + voicing + type, ltt, test_bern_vector)
     contrasts_4$contrast_type = '4-way'
     contrasts_4 = merge(contrasts_4, means_4)
     
-    contrasts_2 = aggregate(thresholded ~ novelty + participant_type, ltt, test_bern_vector)
+    contrasts_2 = aggregate(thresholded ~ novelty + type, ltt, test_bern_vector)
     contrasts_2$contrast_type = '2-way'
     contrasts_2 = merge(contrasts_2, means_2)
 
-    contrasts_2v = aggregate(thresholded ~ voicing + participant_type, ltt, test_bern_vector)
+    contrasts_2v = aggregate(thresholded ~ voicing + type, ltt, test_bern_vector)
     contrasts_2v $contrast_type = '2-way'
     contrasts_2v = merge(contrasts_2v, means_2v)
     
-    contrasts_1 = aggregate(thresholded ~ dummy + participant_type, ltt, test_bern_vector)
+    contrasts_1 = aggregate(thresholded ~  type, ltt, test_bern_vector)
     contrasts_1 $contrast_type = '1-way'
     contrasts_1 = merge(contrasts_1, means_1)
     
@@ -348,7 +372,6 @@ test_participant_receptive_knowledge = function(fixbins, normalizeMethod = "none
     rdf$partition_name = paste(rdf$contrast_type,': ', rdf$partition_name, sep='')
     rdf$novelty = NULL
     rdf$voicing = NULL
-    rdf$dummy = NULL
     rdf$normalizeMethod = normalizeMethod
     rdf$participant_name = gsub('.xlsx', '', gsub('_fixations','',unique(fixbins$participant_name)))
     rdf$expt_version  = unique(fixbins$expt_version)
@@ -462,7 +485,7 @@ getPlotForMethod = function(fixbin_dfs, adult_fixbin_dfs, methodName){
 
     p1 = ggplot(subset(participant_scores_for_method_rp, mod(reverse_proportion, .1) == 0))  + geom_vline(xintercept=.05, colour='red', linetype='dashed') + geom_vline(
     xintercept=.33, colour='blue', linetype='dashed') + ggtitle(methodName) + geom_density(
-    data = subset(simulated_child_scores_for_method, mod(reverse_proportion, .1) == 0), aes(x=prob)) + geom_point(aes(x=prob, y=(-.5), colour=participant_type)
+    data = subset(simulated_child_scores_for_method, mod(reverse_proportion, .1) == 0), aes(x=prob)) + geom_point(aes(x=prob, y=(-.5), colour=type)
     ) + facet_grid(reverse_proportion ~ partition_name, scales='free_y') + theme_bw() + theme(legend.position="none")
 
     agdf = aggregate(prob ~ reverse_proportion + contrast_type  + thresholded, simulated_child_scores_for_method, length) 
@@ -626,12 +649,14 @@ getGroupPlot = function(
     #eval(parse(text="test = subset(subject_info, id=='pl00')"))
     if (!is.null(filter_clause)){
         eval( parse( text= paste0(
-            "fixbins_df_filtered = subset(fixbins_df, !exclude_trial & ",
+            "fixbins_df_filtered = subset(fixbins_df, CURRENT_FIX_INTEREST_AREA_LABEL
+                   != 'OTHER' & !exclude_trial & ",
             filter_clause,
             ")"
         )))
     } else {
-        fixbins_df_filtered = fixbins_df
+        fixbins_df_filtered = subset(fixbins_df, CURRENT_FIX_INTEREST_AREA_LABEL
+                   != 'OTHER' & !exclude_trial)
     }
     fixbins_df_filtered$cfial_bin = as.numeric(fixbins_df_filtered$CURRENT_FIX_INTEREST_AREA_LABEL == 'TARGET')
 
@@ -1071,9 +1096,9 @@ get_num_trials_raw_data = function(gaze, halt_on_missing){
 get_expt_index_from_frame_id = function(frame_id, order){
     #Order 1... p1..p4 -> 1 - 4; 1-32 -> 5 36
     #Order 2... p1..p4 -> 1 - 4; 1-32 -> 5 36        
-    if (order == 2){
-    	stop('Not implemented')
-    }
+    # if (order == 2){
+    # 	stop('Not implemented')
+    # }
     
     if (length(grep('-p', frame_id))>0){
         expt_index = as.numeric(gsub('p','',tail(strsplit(frame_id, '-')[[1]],1))) 
@@ -1127,7 +1152,10 @@ get_num_trials_after_filter = function(gaze, num_trials_after_merge_audio, halt_
     num_trials_after_filter = length(unique(gaze$trial_index))
     if (num_trials_after_filter < num_trials_after_merge_audio){
             if (halt_on_missing){
+                print(paste('Expecting ', num_trials_after_merge_audio))
+                print(paste('Found ', num_trials_after_filter))
                 stop('Lost trials in filter procedure')
+
             } else {
                 print('Lost trials in filter procedure')
             }
@@ -1184,9 +1212,9 @@ get_num_trials_after_augmentation = function(gaze, num_trials_after_filter, halt
 
 get_test_or_practice = function(frame_id){
     if (length(grep('test', frame_id))>0){
-        return('test')
+        return('n')
     } else if (length(grep('practice', frame_id))>0){
-        return('practice')
+        return('y')
     } else {
         print(frame_id)
         stop('Unknown if test or practice')
@@ -1205,7 +1233,7 @@ get_normal_or_calibration = function(frame_id){
 } 
 
 
-analyzeLookItParticipant = function(result_dir, session_id, annotator_id="*", item_properties, audio_timings, participant_type, target_order, plot=F, halt_on_missing=T, legacy=F, fps=20){   
+analyzeLookItParticipant = function(result_dir, session_id, annotator_id="*", item_properties, audio_timings, participant_type, target_order, plot=F, halt_on_missing=F, legacy=F, fps=20){   
     #'''reads in the output of sample_gaze_codes_from_eaf' and matches with the audio timings
     participant_name = session_id
     search_term = paste0(result_dir, session_id,'/processed/', annotator_id, '_',session_id, '.csv')
@@ -1223,10 +1251,10 @@ analyzeLookItParticipant = function(result_dir, session_id, annotator_id="*", it
     gaze$order = target_order 
     names(gaze)
     print(paste(nrow(gaze), ' frame labels before filtering'))
-    gaze$test_or_practice = sapply(gaze$frame_id, get_test_or_practice)
+    gaze$practice = sapply(gaze$frame_id, get_test_or_practice)
     gaze$normal_or_calibration = sapply(gaze$frame_id, get_normal_or_calibration)
 
-    gaze = subset(gaze, test_or_practice == 'test' & normal_or_calibration == 'normal')    
+    gaze = subset(gaze, practice == 'n' & normal_or_calibration == 'normal')    
     print(paste(nrow(gaze), ' after filtering'))
     gaze$expt_index = sapply(gaze$frame_id, function(x){get_expt_index_from_frame_id(x, order=target_order)}) 
     print('Assigned expt_index values')    
@@ -1249,6 +1277,7 @@ analyzeLookItParticipant = function(result_dir, session_id, annotator_id="*", it
 
     num_trials_after_merge_audio = get_num_trials_after_merge_audio(gaze, num_trials_raw_data, halt_on_missing)
 
+
     gaze$CURRENT_FIX_INTEREST_AREA_LABEL = mapply(get_fix_ia, gaze$label, gaze$TargetSide)
     
     ms_interval = (1/ fps) * 1000
@@ -1268,11 +1297,12 @@ analyzeLookItParticipant = function(result_dir, session_id, annotator_id="*", it
     gaze$TRIAL_INDEX = gaze$expt_index
     gaze$timeBin = gaze$Time
     gaze$Nonset = gaze$Time
+    gaze$type = participant_type
     gaze = augmentFixbinsWithFixationAtOnset(367, gaze, label_colname = "CURRENT_FIX_INTEREST_AREA_LABEL", buffer_ms = 200, bin_duration_ms = 50)
     get_num_trials_after_augmentation(gaze, num_trials_after_filter, halt_on_missing)
 
     gaze_coded = subset(gaze, CURRENT_FIX_INTEREST_AREA_LABEL %in% c('TARGET','DISTRACTOR', 'OTHER')
-        & Practice != 'y')
+        & practice != 'y')
     if (nrow(gaze_coded) == 0){
         stop('No coded fixbins')
     }
