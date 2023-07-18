@@ -39,7 +39,7 @@ getAudioTimingsFromGlob = function(glob, duration_onscreen_prior = 2500){
 }
 
 
-analyzeEyetrackingParticipant = function(result_dir, participant, audio_timings, plot=F, haltOnMissing=F){	
+analyzeEyetrackingParticipant = function(result_dir, participant, audio_timings, plot=F, haltOnMissing=F, start_analysis_window = 367, end_analysis_window= 4000){	
     ### 
     # Process a single eyetracking participant (study-specific wrapper for blabr::fixations_report)
     ###
@@ -68,7 +68,7 @@ analyzeEyetrackingParticipant = function(result_dir, participant, audio_timings,
         write.table(temp_table, fixreport_path, sep='\t', quote=T, row.names=F)
     }
     
-	gaze = blabr::fixations_report(fixreport_path)
+	gaze = blabr:::fixations_report(fixreport_path)
 
     if (length(unique(gaze$TRIAL_INDEX)) < 32){
         if (haltOnMissing){
@@ -102,7 +102,7 @@ analyzeEyetrackingParticipant = function(result_dir, participant, audio_timings,
     print(dim(gaze))
 
     binSize = 20
-	fixbins = binifyFixations(gaze, binSize=binSize, keepCols=c(
+	fixbins = blabr:::binifyFixations(gaze, binSize=binSize, keepCols=c(
     "CURRENT_FIX_START",
     "CURRENT_FIX_END",
     "TRIAL_INDEX",
@@ -124,9 +124,9 @@ analyzeEyetrackingParticipant = function(result_dir, participant, audio_timings,
     fixbins$type = participant_type
     fixbins$expt_version = expt_version
 
-    print(names(fixbins))
-    print(fixbins[1,])
-    print(unique(fixbins$CURRENT_FIX_INTEREST_AREA_LABEL))
+    #print(names(fixbins))
+    #print(fixbins[1,])
+    #print(unique(fixbins$CURRENT_FIX_INTEREST_AREA_LABEL))
 
     #fixbins$participant_name = participant_name #this causes problems because suvbject_info aalready has a participant_name
     
@@ -140,20 +140,28 @@ analyzeEyetrackingParticipant = function(result_dir, participant, audio_timings,
     looks_to_d_per_trial = aggregate(Time ~ expt_index  , 
                 subset(fixbins, CURRENT_FIX_INTEREST_AREA_LABEL == 'DISTRACTOR'), function(x){length(x)*binSize})
     names(looks_to_d_per_trial) = c('expt_index', 'looks_to_d')
-    print('checkpoint2')
+
     
     # drop trials looking at less than 1/3 of the window of interest
     looks_to_td_in_window = aggregate(Time ~ expt_index , 
-                subset(fixbins, CURRENT_FIX_INTEREST_AREA_LABEL %in% c('TARGET','DISTRACTOR') & Time > 367 & Time < 4000),
+                subset(fixbins, CURRENT_FIX_INTEREST_AREA_LABEL %in% c('TARGET','DISTRACTOR') & Time > start_analysis_window & Time < end_analysis_window),
                     function(x){length(x)*binSize})
     names(looks_to_td_in_window) = c('expt_index', 'looks_to_td')
     looks_to_td_per_trial = merge(merge(looks_to_t_per_trial, looks_to_d_per_trial, all=T), looks_to_td_in_window, all=T)
 
     looks_to_td_per_trial[is.na(looks_to_td_per_trial)] = 0
 
+    # print('looks_to_td:')
+    # print(looks_to_td_per_trial$looks_to_td)
+    # print('threshold for anlysis window')
+    # print((1/3) * (end_analysis_window - start_analysis_window))
+    # stop('stopped here')
+
+
     looks_to_td_per_trial$exclude_trial =  (looks_to_td_per_trial$looks_to_t == 0) |
                                            (looks_to_td_per_trial$looks_to_d == 0) |
-                                           (looks_to_td_per_trial$looks_to_td < (1/3) *(4000 - 367))   
+                                           (looks_to_td_per_trial$looks_to_td < (1/3) * (end_analysis_window - start_analysis_window))   
+    # note that this comparison is pretty broken                                           
     looks_to_td_per_trial$exclude_subject = F                                  
     
     # check if more than half of the trials were dropped for one of the above reasons
@@ -174,7 +182,7 @@ analyzeEyetrackingParticipant = function(result_dir, participant, audio_timings,
         print('Correct number of trials after binning procedure')
     }
 
-    fixbins = augmentFixbinsWithFixationAtOnset(367, fixbins, label_colname = "CURRENT_FIX_INTEREST_AREA_LABEL", buffer_ms = 200)
+    fixbins = augmentFixbinsWithFixationAtOnset(start_analysis_window, fixbins, label_colname = "CURRENT_FIX_INTEREST_AREA_LABEL", buffer_ms = 200)
 
     if (length(unique(fixbins$TRIAL_INDEX)) < num_trials_raw_data){
         if (haltOnMissing){
@@ -205,7 +213,7 @@ analyzeEyetrackingParticipant = function(result_dir, participant, audio_timings,
     	p0 = ggplot(no_conditioning) + geom_point(aes(x=Time, y = cfial_bin)
     	) + geom_smooth(aes(x=Time, y = cfial_bin)
     	) + coord_cartesian(ylim=c(0,1)) + geom_hline(yintercept = .5, linetype = 'dotted'
-    	) + ylab('Percent Fixations on Target') + xlab('Time in ms') + geom_vline(xintercept=0,
+    	) + ylab('Percent Fixations on Target') + xlab('Time in ms (0 = point of disambiguation)') + geom_vline(xintercept=0,
     	colour='black') + ggtitle(participant_name)  + facet_wrap(~target)
     	print(p0)
 
@@ -213,14 +221,14 @@ analyzeEyetrackingParticipant = function(result_dir, participant, audio_timings,
     	p1 = ggplot(by_novelty) + geom_point(aes(x=Time, y = cfial_bin, colour=novelty)
     	) + geom_smooth(aes(x=Time, y = cfial_bin, colour=novelty)
     	) + coord_cartesian(ylim=c(0,1)) + geom_hline(yintercept = .5, linetype = 'dotted'
-    	) + ylab('Percent Fixations on Target') + xlab('Time in ms') + geom_vline(xintercept=0,
+    	) + ylab('Percent Fixations on Target') + xlab('Time in ms (0 = point of disambiguation)') + geom_vline(xintercept=0,
     	colour='black') + ggtitle(paste(participant_name, ': Novelty', sep='')) + facet_wrap(~target)
     	print(p1)
 
     	p2 = ggplot(by_voicing) + geom_point(aes(x=Time, y = cfial_bin, colour=voicing)
     	) + geom_smooth(aes(x=Time, y = cfial_bin, colour=voicing)
     	) + coord_cartesian(ylim=c(0,1)) + geom_hline(yintercept = .5, linetype = 'dotted'
-    	) + ylab('Percent Fixations on Target') + xlab('Time in ms'
+    	) + ylab('Percent Fixations on Target') + xlab('Time in ms (0 = point of disambiguation)'
     	) + xlab('Time in ms') + geom_vline(xintercept=0, colour='black') + ggtitle(paste(participant_name, 
     	': Voicing', sep='')) + facet_wrap(~target)
     	print(p2)
@@ -228,7 +236,7 @@ analyzeEyetrackingParticipant = function(result_dir, participant, audio_timings,
     	p3 = ggplot(by_animacy) + geom_point(aes(x=Time, y = cfial_bin, colour=animacystatus)
     	) + geom_smooth(aes(x=Time, y = cfial_bin, colour=animacystatus)
     	) + coord_cartesian(ylim=c(0,1)) + geom_hline(yintercept = .5, linetype = 'dotted'
-    	) + ylab('Percent Fixations on Target') + xlab('Time in ms') + geom_vline(xintercept=0, 
+    	) + ylab('Percent Fixations on Target') + xlab('Time in ms (0 = point of disambiguation)') + geom_vline(xintercept=0, 
     	colour='black') + ggtitle(paste(participant_name, ': Animacy', sep='')) + facet_wrap(~target)
     	print(p3)
     }
@@ -248,9 +256,9 @@ test_participant_receptive_knowledge = function(fixbins, normalizeMethod = "none
     #print('fixbins # rows')
     #print(nrow(fixbins))
 
-    fixbins$is_looking_at_target  = as.numeric(fixbins$CURRENT_FIX_INTEREST_AREA_LABEL == 'TARGET')
-    fixbins$is_looking_at_distractor  = as.numeric(fixbins$CURRENT_FIX_INTEREST_AREA_LABEL == 'DISTRACTOR')
-    fixbins = subset(fixbins, CURRENT_FIX_INTEREST_AREA_LABEL %in% c('TARGET','DISTRACTOR'))    
+    fixbins$is_looking_at_target  = as.numeric(fixbins$CURRENT_FIX_INTEREST_AREA_LABEL == 'TARGET') #binarize the target looks
+    fixbins$is_looking_at_distractor  = as.numeric(fixbins$CURRENT_FIX_INTEREST_AREA_LABEL == 'DISTRACTOR') #binarize the distractor looks
+    fixbins = subset(fixbins, CURRENT_FIX_INTEREST_AREA_LABEL %in% c('TARGET','DISTRACTOR'))  #drop anything that isn't a look to a target or distractor  
     tz_after = subset(fixbins, Time > start_analysis_window & Time < end_analysis_window & practice == 'n')
 
     if (nrow(tz_after) == 0){
@@ -263,7 +271,7 @@ test_participant_receptive_knowledge = function(fixbins, normalizeMethod = "none
     
 
     if (return_type == "trial_level"){
-        trial_level_data =  aggregate(cbind(is_looking_at_target, is_looking_at_distractor) ~ expt_index + novelty + voicing + animacystatus  + s_form + type + target +  +participant_name  + expt_version, tz_after, mean) 
+        trial_level_data =  aggregate(cbind(is_looking_at_target, is_looking_at_distractor) ~ expt_index + novelty + voicing + animacystatus  + s_form + type + target +  participant_name  + expt_version, tz_after, mean) 
         return(trial_level_data)
     } 
     
@@ -707,7 +715,16 @@ getGroupPlot = function(
     if (!is.null(linetype_var)){        
         
         # failing at the specification of the interaction and not later than that
-        sem_df$interaction_group = interaction(as.factor(sem_df[[grouping_var]]), as.factor(sem_df[[linetype_var]]))
+        sem_df$interaction_group = as.character(interaction(as.factor(sem_df[[grouping_var]]), as.factor(sem_df[[linetype_var]])))
+
+        sem_df$interaction_group[sem_df$interaction_group == 'pl.adult'] = 'Adult hearing a plural'
+        sem_df$interaction_group[sem_df$interaction_group == 's.adult'] = 'Adult hearing a singular'
+        sem_df$interaction_group[sem_df$interaction_group == 'pl.child'] = 'Child hearing a plural'
+        sem_df$interaction_group[sem_df$interaction_group == 's.child'] = 'Child hearing a singular'
+
+        sem_df$interaction_group = factor(sem_df$interaction_group)
+
+
         p1 = p1 + geom_errorbar( data=sem_df, aes_string(x='Time', ymin='cfial_low', ymax='cfial_high', colour = 'interaction_group', 
             group='interaction_group' ), alpha=.25)
     } else {
@@ -721,7 +738,15 @@ getGroupPlot = function(
     # Means get addded 2nd
     if (!is.null(linetype_var)){
         agg_means_df = aggregated_means
-        agg_means_df$interaction_group = interaction(as.factor(agg_means_df[[grouping_var]]), as.factor(agg_means_df[[linetype_var]]))    
+        agg_means_df$interaction_group = as.character(interaction(as.factor(agg_means_df[[grouping_var]]), as.factor(agg_means_df[[linetype_var]])))
+
+        agg_means_df$interaction_group[agg_means_df$interaction_group == 'pl.adult'] = 'Adult hearing a plural'
+        agg_means_df$interaction_group[agg_means_df$interaction_group == 's.adult'] = 'Adult hearing a singular'
+        agg_means_df$interaction_group[agg_means_df$interaction_group == 'pl.child'] = 'Child hearing a plural'
+        agg_means_df$interaction_group[agg_means_df$interaction_group == 's.child'] = 'Child hearing a singular'
+
+        agg_means_df$interaction_group = factor(agg_means_df$interaction_group)
+
         #p1 = p1 + geom_point(data=agg_means_df, aes_string(x='Time', y = 'cfial_bin', colour=grouping_var), size=.5, pch=21)
         p1 = p1 + geom_line(data=agg_means_df, aes_string(x='Time', y = 'cfial_bin', colour='interaction_group', 
             group= 'interaction_group'), size=.5, pch=21)         
@@ -739,7 +764,7 @@ getGroupPlot = function(
     }
 
     # add the constants for all plots
-    p1 = p1 + coord_cartesian(ylim=c(0,1), xlim=c(x_start, x_end)) + geom_hline(yintercept = .5, linetype = 'dotted') + ylab('Proportion Fixations to Target') + xlab('Time in ms') + geom_vline(xintercept=0, colour='black')  + theme_bw()  
+    p1 = p1 + coord_cartesian(ylim=c(0,1), xlim=c(x_start, x_end)) + geom_hline(yintercept = .5, linetype = 'dotted') + ylab('Proportion Fixations to Target') + xlab('Time in ms (0 = point of disambiguation)') + geom_vline(xintercept=0, colour='black')  + theme_bw()  + theme(legend.title=element_blank())
     
     if (!is.null(group_title)){
         p1 = p1 + ggtitle(paste0(group_title, ": ", grouping_var, " (n = ", length(unique(participant_mean_df$filename)),")"))
@@ -1332,14 +1357,14 @@ analyzeLookItParticipant = function(result_dir, session_id, annotator_id="*", it
         p0 = ggplot(num_non_na_obs) + geom_point(aes(x=TimeBin, y = cfial_bin)
         ) + geom_smooth(aes(x=TimeBin, y = cfial_bin)
         ) + geom_hline(yintercept = .5, linetype = 'dotted'
-        ) + ylab('Num of non-NA Looks') + xlab('Time in ms') + geom_vline(xintercept=0,
+        ) + ylab('Num of non-NA Looks') + xlab('Time in ms (0 = point of disambiguation)') + geom_vline(xintercept=0,
         colour='black') + ggtitle(paste(participant_name, 'Non-NA Looks'))  + facet_wrap(~target)
         print(p0)
 
         p0 = ggplot(no_conditioning) + geom_point(aes(x=TimeBin, y = cfial_bin)
         ) + geom_smooth(aes(x=TimeBin, y = cfial_bin)
         ) + coord_cartesian(ylim=c(0,1)) + geom_hline(yintercept = .5, linetype = 'dotted'
-        ) + ylab('Proportion Fixations to Target') + xlab('Time in ms') + geom_vline(xintercept=0,
+        ) + ylab('Proportion Fixations to Target') + xlab('Time in ms (0 = point of disambiguation)') + geom_vline(xintercept=0,
         colour='black') + ggtitle(participant_name)  + facet_wrap(~target
         ) + geom_vline(xintercept=367, color='green')    
         print(p0)
@@ -1349,7 +1374,7 @@ analyzeLookItParticipant = function(result_dir, session_id, annotator_id="*", it
         p1 = ggplot(by_novelty) + geom_point(aes(x=TimeBin, y = cfial_bin, colour=novelty)
         ) + geom_smooth(aes(x=TimeBin, y = cfial_bin, colour=novelty)
         ) + coord_cartesian(ylim=c(0,1)) + geom_hline(yintercept = .5, linetype = 'dotted'
-        ) + ylab('Proportion Fixations to Target') + xlab('Time in ms') + geom_vline(xintercept=0,
+        ) + ylab('Proportion Fixations to Target') + xlab('Time in ms (0 = point of disambiguation)') + geom_vline(xintercept=0,
         colour='black') + ggtitle(paste(participant_name, ': Novelty', sep='')
         ) + facet_wrap(~target) + geom_vline(xintercept=367, color='green')
         print(p1)
@@ -1357,7 +1382,7 @@ analyzeLookItParticipant = function(result_dir, session_id, annotator_id="*", it
         p2 = ggplot(by_voicing) + geom_point(aes(x=TimeBin, y = cfial_bin, colour=voicing)
         ) + geom_smooth(aes(x=TimeBin, y = cfial_bin, colour=voicing)
         ) + coord_cartesian(ylim=c(0,1)) + geom_hline(yintercept = .5, linetype = 'dotted'
-        ) + ylab('Proportion Fixations to Target') + xlab('Time in ms'
+        ) + ylab('Proportion Fixations to Target') + xlab('Time in ms (0 = point of disambiguation)'
         ) + xlab('Time in ms') + geom_vline(xintercept=0, colour='black') + ggtitle(paste(participant_name, 
         ': Voicing', sep='')) + facet_wrap(~target) + geom_vline(xintercept=367, color='green')
         print(p2)
@@ -1365,7 +1390,7 @@ analyzeLookItParticipant = function(result_dir, session_id, annotator_id="*", it
         p3 = ggplot(by_animacy) + geom_point(aes(x=TimeBin, y = cfial_bin, colour=animacyStatus)
         ) + geom_smooth(aes(x=TimeBin, y = cfial_bin, colour=animacyStatus)
         ) + coord_cartesian(ylim=c(0,1)) + geom_hline(yintercept = .5, linetype = 'dotted'
-        ) + ylab('Proportion Fixations to Target') + xlab('Time in ms') + geom_vline(xintercept=0, 
+        ) + ylab('Proportion Fixations to Target') + xlab('Time in ms (0 = point of disambiguation)') + geom_vline(xintercept=0, 
         colour='black') + ggtitle(paste(participant_name, ': Animacy', sep='')
         ) + facet_wrap(~target) + geom_vline(xintercept=367, color='green')
         print(p3) 
@@ -1375,3 +1400,176 @@ analyzeLookItParticipant = function(result_dir, session_id, annotator_id="*", it
     #gaze_coded$filename = filename
     return(gaze_coded)
 } 
+
+
+binarize = function(x, levels=NULL){ 
+    if (is.null(levels)){
+        x = factor(x)
+    } else {
+        x = factor(x, levels=levels)
+    }
+    bins = levels(as.factor(x))
+    print(bins)
+    rv = -1
+    rv[x == bins[1]] = -1
+    rv[x == bins[2]] = 1
+    return(rv)
+}
+
+run_eyetracking_lm = function(trial_scores, fixed_effects_string, random_effects_string){
+
+    lmem_formula = as.formula(paste(fixed_effects_string, '+', random_effects_string))
+
+    study1_lm_data = subset(trial_scores, type == "child" & expt_version=='scene')
+    study1_lm_data$novelty = binarize(study1_lm_data$novelty,c('familiar','novel'))
+    study1_lm_data$voicing = binarize(study1_lm_data$voicing,c('voiceless','voiced'))
+    study1_lm_data$animacystatus = binarize(study1_lm_data$animacystatus, c('inanimate',
+        'animate'))
+    study1_lm_data$target = binarize(study1_lm_data$target, c('s','pl'))
+    # https://stats.stackexchange.com/questions/242109/model-failed-to-converge-warning-in-lmer
+    # per-subject random slopes for novelty etc: each child has a different proposensity for    
+
+    study1_brm <- brm(lmem_formula,study1_lm_data,family="gaussian", init=.5, seed=1, chains = 4, cores = 16, backend = "cmdstanr", threads = threading(4))
+
+    study1_eyetracking_effects =as.data.frame(fixef(study1_brm))
+
+    study2_lm_data = subset(trial_scores, type == "child" & expt_version=='redblue')
+    study2_lm_data$novelty = binarize(study2_lm_data$novelty,c('familiar','novel'))
+    study2_lm_data$voicing = binarize(study2_lm_data$voicing,c('voiceless','voiced'))
+    study2_lm_data$animacystatus = binarize(study2_lm_data$animacystatus, c('inanimate',
+    'animate'))
+    study2_lm_data$target = binarize(study2_lm_data$target,c('s','pl'))
+
+    study2_brm <- brm(lmem_formula,study2_lm_data,family="gaussian", init=.5,seed=1, chains = 4, cores = 16, backend = "cmdstanr", threads = threading(4))
+
+    study3_lm_data = subset(trial_scores, type == "child" & expt_version=='agreement')
+    study3_lm_data$novelty = binarize(study3_lm_data$novelty,c('familiar','novel'))
+    study3_lm_data$voicing = binarize(study3_lm_data$voicing,c('voiceless','voiced'))
+    study3_lm_data$animacystatus = binarize(study3_lm_data$animacystatus, c('inanimate',
+    'animate'))
+    study3_lm_data$target = binarize(study3_lm_data$target,c('s','pl'))
+
+    ####BRMS for study 3.
+    study3_brm <- brm(lmem_formula, study3_lm_data,family="gaussian", init=.5,seed=1, chains = 4, cores = 16, backend = "cmdstanr", threads = threading(4))
+
+    # study4_lm_data = subset(trial_scores, type == "child" & expt_version=='agreement-lookit')
+    # study4_lm_data$novelty = binarize(study4_lm_data$novelty,c('familiar','novel'))
+    # study4_lm_data$voicing = binarize(study4_lm_data$voicing,c('voiceless','voiced'))
+    # study4_lm_data$animacystatus = binarize(study4_lm_data$animacystatus, c('inanimate',
+    # 'animate'))
+    # study4_lm_data$target = binarize(study4_lm_data$target,c('s','pl'))
+
+    # study4_brm <- brm(is_looking_at_target ~ novelty*voicing*animacystatus*target *
+    #     age_in_months_c + expt_index  + (novelty*voicing*animacystatus*target
+    #      | participant_name) +(target * age_in_months_c |
+    #     s_form),study4_lm_data,family="gaussian", init=.5,seed=1, chains = 4, cores = 16, backend = "cmdstanr", threads = threading(4))
+
+    
+    eyetracking_lm_fixed_effects = rbind(
+    #prepModelForDWPlot(study4_brm) %>% mutate(model = "Study 4"),
+    prepModelForDWPlot(study3_brm) %>% mutate(model = "Study 3"),
+    prepModelForDWPlot(study2_brm) %>% mutate(model = "Study 2"),
+    prepModelForDWPlot(study1_brm) %>% mutate(model = "Study 1")
+    )
+
+    rlist = list()
+    rlist[['fixed_effects']] = eyetracking_lm_fixed_effects
+    rlist[['models']] = list(study1_brm, study2_brm, study3_brm)
+
+    eyetracking_lm_fixed_effects = rlist$fixed_effects
+    keeps = subset(eyetracking_lm_fixed_effects, ( !interaction) & model != "Study 4" )$term
+    eyetracking_lm_fixed_effects = as.data.frame(subset(eyetracking_lm_fixed_effects, term %in%  keeps))
+    
+    eyetracking_lm_fixed_effects$full_term = unname(sapply(eyetracking_lm_fixed_effects$term,
+                                               function(x){eyetracking_term_remapping[[x]]}))
+    
+    eyetracking_lm_fixed_effects$full_term = factor(eyetracking_lm_fixed_effects$full_term,
+    levels = rev(unname(eyetracking_term_remapping)))
+    
+    eyetracking_lm_fixed_effects$model = factor(eyetracking_lm_fixed_effects$model,
+        rev(levels(as.factor(eyetracking_lm_fixed_effects$model))))
+    print(eyetracking_lm_fixed_effects)
+    
+    return(eyetracking_lm_fixed_effects)
+}
+
+
+
+eyetracking_term_remapping = list()
+eyetracking_term_remapping[['Intercept']] = "Interept"
+eyetracking_term_remapping[['target']] = "Singular vs Plural"
+eyetracking_term_remapping[['novelty']] = "Familiar vs Novel"
+eyetracking_term_remapping[['voicing']] = "Voicing (+/s/ vs +/z/)"
+eyetracking_term_remapping[['animacystatus']] = "Animacy Status"
+eyetracking_term_remapping[['expt_index']] = "Trial Order"
+eyetracking_term_remapping[['age_in_months_c']] = "Child Age in Months"
+eyetracking_term_remapping[['broad_score']] = "Broad Score"
+eyetracking_term_remapping[['nov_pl']] = "Number of Novel Plurals"
+eyetracking_term_remapping[['fam_pl']] = "Number of Familiar Plurals"
+
+remap = list()
+remap[['0']] = 'No Data'
+remap[['1']] = 'No Response / Not Relevant'
+remap[['2']] = 'No Response / Not Relevant'
+remap[['3']] = 'No Response / Not Relevant'
+remap[['4']] = 'No Response / Not Relevant'
+remap[['5']] = 'Singular'
+remap[['6']] = 'Non-Conventional Plural'
+remap[['7']] = 'Plural'
+remap[['8']] = 'Plural'
+
+spearboot = function(dat, var1, var2, cor_method, R = 2500){
+    N <- nrow(dat)
+    cor.boot = mat.or.vec(1,R)
+    for (i in 1:R) {
+      idx <- sample.int(N, N, replace = TRUE) 
+      cor.boot[i] <- cor(dat[idx,var1],dat[idx,var2], method=cor_method,
+                        use='pairwise.complete.obs')
+    }
+    return(cor.boot)
+}
+
+getSpearmanStats = function(exre, var1, var2, varTitle, tvc){
+    cor_test = cor.test(exre[[var1]], exre[[var2]], use='pairwise.complete.obs',
+       method = "spearman")
+    
+    boot_estimate = spearboot(exre, var1, var2,
+    'spearman')
+    
+    boot_ci = quantile(boot_estimate, c(.025,.975))    
+    #print(unname(cor_test$estimate)[1])
+    tvc = update_texvar_cache(tvc, paste0(varTitle,'Cor'), unname(cor_test$estimate)[1], digits=3)
+    #print(unname(cor_test$p.value)[1])
+    tvc = update_texvar_cache(tvc, paste0(varTitle,'CorP'), unname(cor_test$p.value)[1], digits=3)
+    #print(boot_ci[['2.5%']][1])
+    tvc = update_texvar_cache(tvc, paste0(varTitle, 'CorLow'), boot_ci[['2.5%']][1], digits=3)
+    tvc = update_texvar_cache(tvc, paste0(varTitle, 'CorHigh'), boot_ci[['97.5%']][1], digits=3)    
+    return(tvc)    
+}
+
+lmp <- function (modelobject) {
+    if (class(modelobject) != "lm") stop("Not an object of class 'lm' ")
+    f <- summary(modelobject)$fstatistic
+    p <- pf(f[1],f[2],f[3],lower.tail=F)
+    attributes(p) <- NULL
+    return(p)
+}
+
+lm_eqn <- function(df, eq){
+    m <- lm(as.formula(eq), df);
+    eq <- substitute(~~italic(R)^2~"="~r2*","~~italic(p)~"="~pval, 
+         list(a = format(unname(coef(m)[1]), digits = 2),
+              b = format(unname(coef(m)[2]), digits = 2),
+             r2 = format(summary(m)$r.squared, digits = 3),
+             pval = format(lmp(m), digits=3)))
+    return(as.character(as.expression(eq)))
+}
+
+spear_eqn = function(tvc){
+    eq <- substitute("Spearman's"~rho~"="~a*", 95"*symbol("\045")~"CI"~"="~b~"-"~c, 
+         list(a = format(tvc$expRecCor, digits = 2),
+              b = format(tvc$expRecCorLow, digits = 2),
+             c = format(tvc$expRecCorHigh, digits = 3)
+           ))
+    return(as.character(as.expression(eq)))
+}
