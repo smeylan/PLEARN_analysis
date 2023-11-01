@@ -1472,11 +1472,6 @@ run_eyetracking_lm = function(trial_scores, fixed_effects_string, random_effects
     prepModelForDWPlot(study1_brm) %>% mutate(model = "Study 1")
     )
 
-    rlist = list()
-    rlist[['fixed_effects']] = eyetracking_lm_fixed_effects
-    rlist[['models']] = list(study1_brm, study2_brm, study3_brm)
-
-    eyetracking_lm_fixed_effects = rlist$fixed_effects
     keeps = subset(eyetracking_lm_fixed_effects, ( !interaction) & model != "Study 4" )$term
     eyetracking_lm_fixed_effects = as.data.frame(subset(eyetracking_lm_fixed_effects, term %in%  keeps))
     
@@ -1489,21 +1484,26 @@ run_eyetracking_lm = function(trial_scores, fixed_effects_string, random_effects
     eyetracking_lm_fixed_effects$model = factor(eyetracking_lm_fixed_effects$model,
         rev(levels(as.factor(eyetracking_lm_fixed_effects$model))))
     print(eyetracking_lm_fixed_effects)
+
+    rlist = list()
+    rlist[['fixed_effects']] = eyetracking_lm_fixed_effects
+    rlist[['models']] = list(study1_brm, study2_brm, study3_brm)
+
     
-    return(eyetracking_lm_fixed_effects)
+    return(rlist)
 }
 
 
 
 eyetracking_term_remapping = list()
-eyetracking_term_remapping[['Intercept']] = "Interept"
+eyetracking_term_remapping[['Intercept']] = "Intercept"
 eyetracking_term_remapping[['target']] = "Singular vs Plural"
 eyetracking_term_remapping[['novelty']] = "Familiar vs Novel"
 eyetracking_term_remapping[['voicing']] = "Voicing (+/s/ vs +/z/)"
 eyetracking_term_remapping[['animacystatus']] = "Animacy Status"
 eyetracking_term_remapping[['expt_index']] = "Trial Order"
 eyetracking_term_remapping[['age_in_months_c']] = "Child Age in Months"
-eyetracking_term_remapping[['broad_score']] = "Broad Score"
+eyetracking_term_remapping[['broad_score']] = ""
 eyetracking_term_remapping[['nov_pl']] = "Number of Novel Plurals"
 eyetracking_term_remapping[['fam_pl']] = "Number of Familiar Plurals"
 
@@ -1566,10 +1566,103 @@ lm_eqn <- function(df, eq){
 }
 
 spear_eqn = function(tvc){
-    eq <- substitute("Spearman's"~rho~"="~a*", 95"*symbol("\045")~"CI"~"="~b~"-"~c, 
+    eq <- substitute("Spearman's"~rho~"="~a*", 95"*symbol("\045")~"CI"~"="~b~"-"~c~","~~italic(p)~"="~pval, 
          list(a = format(tvc$expRecCor, digits = 2),
               b = format(tvc$expRecCorLow, digits = 2),
-             c = format(tvc$expRecCorHigh, digits = 3)
+             c = format(tvc$expRecCorHigh, digits = 2),
+              pval = format(tvc$expRecCorP, digits = 2)
            ))
     return(as.character(as.expression(eq)))
 }
+
+getPearsonStats = function(exre, var1, var2, varTitle, tvc){
+    cor_test = cor.test(exre[[var1]], exre[[var2]], use='pairwise.complete.obs',
+       method = "pearson")
+
+    tvc = update_texvar_cache(tvc, paste0(varTitle,'PearsonCor'), unname(cor_test$estimate)[1], digits=3)
+    tvc = update_texvar_cache(tvc, paste0(varTitle,'PearsonCorP'), unname(cor_test$p.value)[1], digits=3)
+    tvc = update_texvar_cache(tvc, paste0(varTitle, 'PearsonCorLow'), cor_test$conf.int[1], digits=3)
+    tvc = update_texvar_cache(tvc, paste0(varTitle, 'PearsonCorHigh'), cor_test$conf.int[2], digits=3)    
+    return(tvc)    
+}
+
+pearson_eqn = function(tvc, varTitle='expRec'){
+    eq <- substitute("Peasons's"~italic(r)~"="~a*", 95"*symbol("\045")~"CI"~"="~b~"-"~c~","~~italic(p)~"="~pval, 
+         list(a = format(tvc[[paste0(varTitle, "PearsonCor")]], digits = 2),
+              b = format(tvc[[paste0(varTitle, "PearsonCorLow")]], digits = 2),
+             c = format(tvc[[paste0(varTitle, "PearsonCorHigh")]], digits = 2),
+              pval = format(tvc[[paste0(varTitle, "PearsonCorP")]], digits = 2)
+           ))
+    return(as.character(as.expression(eq)))
+}
+
+prepBRMStable = function(model, output_file){
+
+    fixed_effects_df_tex = summary(model)$fixed
+    fixed_effects_df_tex$Variable = rownames(fixed_effects_df_tex) 
+    rownames(fixed_effects_df_tex) = NULL
+
+    fixed_effects_df_tex$Variable = sapply(fixed_effects_df_tex$Variable, function(x){sub_all_intercept_terms(x, table_remapping)})
+
+    fixed_effects_df_tex[['95% CI']] = paste(round(fixed_effects_df_tex[["l-95% CI"]], 3),
+        round(fixed_effects_df_tex[["u-95% CI"]], 2), sep=" -- ")
+
+    reordered_cols = c("Variable", "Estimate", "Est.Error", "95% CI")
+    fixed_effects_df_tex = fixed_effects_df_tex[,reordered_cols]        
+
+    fixed_effects_df_tex = xtable(fixed_effects_df_tex, digits=3)
+
+    print(fixed_effects_df_tex, file = paste0('texvars/', output_file,'_fixed.tex'), compress=F, include.rownames=FALSE, only.contents =T)
+}
+
+
+prepBRMStableRandom = function(model, output_file, random_factor){
+    random_effects_df_tex = summary(model)$random[[random_factor]]
+    
+    random_effects_df_tex$Variable = rownames(random_effects_df_tex) 
+    rownames(random_effects_df_tex) = NULL
+
+    random_effects_df_tex$Variable = sapply(random_effects_df_tex$Variable, function(x){sub_all_intercept_terms(x, table_remapping)})
+    random_effects_df_tex$is_cor = sapply(random_effects_df_tex$Variable, function(x){
+        str_detect(x, 'cor\\(')
+    })
+
+    random_effects_df_tex = subset(random_effects_df_tex, !is_cor)
+
+    random_effects_df_tex[['95% CI']] = paste(round(random_effects_df_tex[["l-95% CI"]], 3),
+       round(random_effects_df_tex[["u-95% CI"]], 2), sep=" -- ")
+
+
+    reordered_cols = c("Variable", "Estimate", "Est.Error", "95% CI")
+    random_effects_df_tex = random_effects_df_tex[,reordered_cols]    
+    
+    random_effects_df_tex = xtable(random_effects_df_tex, digits=3)
+
+    print(random_effects_df_tex, file = paste0('texvars/', output_file,'_random_',random_factor,'.tex'), compress=F, include.rownames=FALSE, only.contents =T
+    )
+}
+
+
+table_remapping = list()
+table_remapping[[':']] = " x "
+table_remapping[['Intercept']] = "Intercept"
+table_remapping[['target']] = "Plurality"
+table_remapping[['novelty']] = "Familiarity"
+table_remapping[['voicing']] = "Voicing"
+table_remapping[['animacystatus']] = "Animacy"
+table_remapping[['expt_index']] = "Trial Order"
+table_remapping[['age_in_months_c']] = "Child Age"
+table_remapping[['broad_score']] = "Prop. Success in Storybook"
+table_remapping[['nov_pl']] = "Num. of Nov. Plurals"
+table_remapping[['fam_pl']] = "Num. of Fam. Plurals"
+
+
+
+sub_all_intercept_terms = function(x, eyetracking_term_remapping){
+    for (key in names(eyetracking_term_remapping)){
+        x = gsub(key, eyetracking_term_remapping[[key]],x )
+    }
+    return(x)
+}
+
+
